@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EcoMatch — Circular Material Exchange Marketplace
 
-## Getting Started
+EcoMatch is a hackathon prototype where organisations can exchange reusable, recyclable and industrial surplus materials.
 
-First, run the development server:
+## Problem Statement Alignment
+
+> Build a marketplace where organizations can exchange reusable materials while AI classifies waste and blockchain ensures transparent ownership records.
+
+EcoMatch now demonstrates all three parts:
+
+- **Organisation material marketplace:** buy/sell flows, verified listings, filters and direct chat.
+- **AI waste classification:** `/ai-classify` classifies a material description into a waste/material category and suggests a circular reuse route.
+- **AI material matching:** `/ai-match` ranks approved marketplace listings against a buyer's natural-language requirement.
+- **Blockchain ownership prototype:** `/ledger` builds a SHA-256 linked chain from approved marketplace records so each record includes the previous record hash and current hash.
+
+## Important Prototype Note
+
+The ownership ledger is a **hackathon blockchain prototype**. It demonstrates cryptographic chaining and tamper-evident ownership records in the browser. It is not a deployed decentralized network. A production version can persist the same ownership events to a permissioned blockchain or smart contract.
+
+## Main Routes
+
+- `/` — Home
+- `/marketplace` — Browse reusable materials
+- `/seller/add-product` — List material for verification
+- `/ai-classify` — AI waste/material classification demo
+- `/ai-match` — AI requirement matching
+- `/ledger` — Blockchain-style ownership ledger
+- `/admin` — Listing verification
+- `/chat` and `/chat/inbox` — Buyer/seller communication
+
+## Tech Stack
+
+- Next.js 16 + React 19 + TypeScript
+- Tailwind CSS
+- Supabase Auth, PostgreSQL and Storage
+- Web Crypto API (SHA-256) for the prototype ownership chain
+
+## Run Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Add the same Supabase environment variables used by the existing project before running.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Team
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**High on Codes**
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Janit Kumar Hind · Krish Tiwari · Jeetu Yadav · Yash Gautam

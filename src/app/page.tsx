@@ -76,9 +76,9 @@ export default function Home() {
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-          EcoMatch connects sellers of reusable and industrial materials
-          with buyers looking for the right products using smart filters,
-          verified listings and AI-powered matching.
+          EcoMatch connects organisations to exchange reusable and industrial
+          materials using AI classification, smart matching, verified listings
+          and transparent ownership records.
         </p>
 
         {/* Main Actions */}
@@ -102,7 +102,8 @@ export default function Home() {
         <div className="mx-auto mt-12 flex max-w-2xl flex-wrap justify-center gap-5 text-sm font-medium text-gray-600">
           <span>✓ Verified Listings</span>
           <span>✓ Direct Buyer–Seller Chat</span>
-          <span>✓ AI Matching</span>
+          <span>✓ AI Waste Classification</span>
+          <span>✓ Blockchain Ownership Ledger</span>
           <span>✓ Free Marketplace</span>
         </div>
       </section>
@@ -185,12 +186,12 @@ export default function Home() {
               </div>
 
               <h3 className="mt-5 text-lg font-bold">
-                Verify & Match
+                Classify & Verify
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                Listings go through verification and buyers can use
-                smart filters or AI matching to find suitable products.
+                AI classifies surplus material, while verified listings
+                are prepared for transparent ownership tracking.
               </p>
             </div>
 
@@ -200,12 +201,12 @@ export default function Home() {
               </div>
 
               <h3 className="mt-5 text-lg font-bold">
-                Connect Directly
+                Exchange Transparently
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                Buyers and sellers communicate directly through the
-                EcoMatch messaging system.
+                Organisations connect directly and the ownership ledger
+                provides a transparent, tamper-evident record trail.
               </p>
             </div>
           </div>
@@ -220,21 +221,35 @@ export default function Home() {
           </p>
 
           <h2 className="mx-auto mt-3 max-w-3xl text-3xl font-bold md:text-4xl">
-            Tell us what you need. Let AI find the best match.
+            Classify waste. Match reusable materials. Track ownership.
           </h2>
 
           <p className="mx-auto mt-4 max-w-2xl leading-7 text-gray-600">
-            Describe your material requirement in normal language and
-            EcoMatch will analyse available listings to recommend
-            suitable materials based on your requirements.
+            EcoMatch classifies surplus materials, matches buyer requirements
+            with verified listings, and exposes a transparent ownership ledger
+            for approved marketplace records.
           </p>
 
-          <button
-            onClick={() => router.push("/ai-match")}
-            className="mt-7 rounded-xl bg-[#187052] px-7 py-3 font-semibold text-white transition hover:bg-[#125c43]"
-          >
-            Try AI Matching →
-          </button>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              onClick={() => router.push("/ai-classify")}
+              className="rounded-xl bg-[#187052] px-7 py-3 font-semibold text-white transition hover:bg-[#125c43]"
+            >
+              AI Waste Classifier →
+            </button>
+            <button
+              onClick={() => router.push("/ai-match")}
+              className="rounded-xl border border-[#187052] bg-white px-7 py-3 font-semibold text-[#187052] transition hover:bg-[#f7faf9]"
+            >
+              AI Material Matching
+            </button>
+            <button
+              onClick={() => router.push("/ledger")}
+              className="rounded-xl border border-[#187052] bg-white px-7 py-3 font-semibold text-[#187052] transition hover:bg-[#f7faf9]"
+            >
+              View Ownership Ledger
+            </button>
+          </div>
         </div>
       </section>
 
@@ -269,7 +284,7 @@ export default function Home() {
         </p>
 
         <p className="mt-2 text-sm text-gray-300">
-          AI-Powered B2B Marketplace for Circular Industrial Materials
+          AI + Blockchain Marketplace for Circular Industrial Materials
         </p>
 
         <p className="mt-5 text-xs text-gray-400">

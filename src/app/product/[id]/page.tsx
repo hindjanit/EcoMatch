@@ -297,7 +297,14 @@ export default function ProductDetailsPage() {
               onClick={openChat}
               className="mt-7 w-full rounded-xl bg-[#187052] py-4 text-lg font-bold text-white shadow-sm hover:bg-[#125c43]"
             >
-              💬 Chat with Seller
+              💬 Chat with Seller / Organisation
+            </button>
+
+            <button
+              onClick={() => router.push("/ledger")}
+              className="mt-3 w-full rounded-xl border border-[#187052] bg-white py-3 font-bold text-[#187052] hover:bg-[#eef9f4]"
+            >
+              🔗 Verify Ownership Record
             </button>
           </div>
         </div>
