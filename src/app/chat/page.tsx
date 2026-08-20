@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -35,10 +36,9 @@ type Product = {
   price: number;
 };
 
-export default function ChatPage() {
+function ChatContent() {
   const supabase = createClient();
   const router = useRouter();
-
   const searchParams = useSearchParams();
 
   const conversationId =
@@ -56,10 +56,9 @@ export default function ChatPage() {
   const [
     conversation,
     setConversation,
-  ] =
-    useState<Conversation | null>(
-      null
-    );
+  ] = useState<Conversation | null>(
+    null
+  );
 
   const [product, setProduct] =
     useState<Product | null>(null);
@@ -67,14 +66,12 @@ export default function ChatPage() {
   const [
     messages,
     setMessages,
-  ] =
-    useState<Message[]>([]);
+  ] = useState<Message[]>([]);
 
   const [
     newMessage,
     setNewMessage,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [loading, setLoading] =
     useState(true);
@@ -98,7 +95,6 @@ export default function ChatPage() {
     sellerId,
   ]);
 
-  // Auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -252,7 +248,6 @@ export default function ChatPage() {
       let currentConversation =
         existingConversation;
 
-      // Create only if not found
       if (
         !currentConversation
       ) {
@@ -304,7 +299,6 @@ export default function ChatPage() {
         loadMessages(
           currentConversation.id
         ),
-
         loadProduct(
           currentConversation.product_id
         ),
@@ -348,7 +342,6 @@ export default function ChatPage() {
         "Product error:",
         error
       );
-
       return;
     }
 
@@ -400,6 +393,7 @@ export default function ChatPage() {
     }
 
     setSending(true);
+    setError("");
 
     const {
       data,
@@ -431,7 +425,6 @@ export default function ChatPage() {
     if (data) {
       setMessages(
         (current) => {
-
           if (
             current.some(
               (message) =>
@@ -472,25 +465,19 @@ export default function ChatPage() {
           "postgres_changes",
           {
             event: "INSERT",
-
             schema:
               "public",
-
             table:
               "messages",
-
             filter:
               `conversation_id=eq.${conversation.id}`,
           },
-
           (payload) => {
-
             const incomingMessage =
               payload.new as Message;
 
             setMessages(
               (current) => {
-
                 if (
                   current.some(
                     (message) =>
@@ -521,9 +508,7 @@ export default function ChatPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7faf9]">
-
         <div className="text-center">
-
           <div className="text-5xl">
             💬
           </div>
@@ -531,9 +516,7 @@ export default function ChatPage() {
           <p className="mt-4 font-semibold text-[#187052]">
             Opening chat...
           </p>
-
         </div>
-
       </main>
     );
   }
@@ -541,9 +524,7 @@ export default function ChatPage() {
   if (error) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7faf9] px-6">
-
         <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-
           <div className="text-4xl">
             ⚠️
           </div>
@@ -564,9 +545,7 @@ export default function ChatPage() {
           >
             Go Back
           </button>
-
         </div>
-
       </main>
     );
   }
@@ -577,12 +556,9 @@ export default function ChatPage() {
 
   return (
     <main className="min-h-screen bg-[#f7faf9]">
-
       {/* HEADER */}
       <header className="border-b border-gray-200 bg-white">
-
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-
           <button
             onClick={() =>
               router.push(
@@ -604,24 +580,16 @@ export default function ChatPage() {
           >
             ← Messages
           </button>
-
         </div>
-
       </header>
 
       <section className="mx-auto max-w-4xl px-5 py-8">
-
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-
           {/* CHAT HEADER */}
           <div className="border-b border-gray-200 bg-[#eef9f4] p-5">
-
             <div className="flex items-center justify-between gap-4">
-
               <div>
-
                 <div className="flex items-center gap-2">
-
                   <span className="text-2xl">
                     {isBuyer
                       ? "🏪"
@@ -629,7 +597,6 @@ export default function ChatPage() {
                   </span>
 
                   <div>
-
                     <p className="text-xs font-bold uppercase tracking-wide text-[#187052]">
                       {isBuyer
                         ? "Chat with Seller"
@@ -640,22 +607,18 @@ export default function ChatPage() {
                       {product?.title ||
                         "Product Conversation"}
                     </h1>
-
                   </div>
-
                 </div>
 
                 {product && (
                   <p className="mt-2 text-sm text-gray-600">
                     {product.category}
-                    {" • "}
-                    ₹
+                    {" • "}₹
                     {product.price.toLocaleString(
                       "en-IN"
                     )}
                   </p>
                 )}
-
               </div>
 
               {product && (
@@ -670,21 +633,15 @@ export default function ChatPage() {
                   View Product
                 </button>
               )}
-
             </div>
-
           </div>
 
           {/* MESSAGES */}
           <div className="min-h-[450px] max-h-[570px] overflow-y-auto bg-[#f8faf9] p-5">
-
             {messages.length ===
               0 && (
-
               <div className="flex min-h-[400px] items-center justify-center text-center">
-
                 <div>
-
                   <div className="text-6xl">
                     💬
                   </div>
@@ -699,17 +656,13 @@ export default function ChatPage() {
                     availability and
                     specifications.
                   </p>
-
                 </div>
-
               </div>
             )}
 
             <div className="space-y-3">
-
               {messages.map(
                 (message) => {
-
                   const isMine =
                     message.sender_id ===
                     userId;
@@ -725,7 +678,6 @@ export default function ChatPage() {
                           : "justify-start"
                       }`}
                     >
-
                       <div
                         className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
                           isMine
@@ -733,7 +685,6 @@ export default function ChatPage() {
                             : "rounded-bl-md border border-gray-200 bg-white text-[#163038]"
                         }`}
                       >
-
                         <p className="whitespace-pre-wrap break-words text-sm leading-6">
                           {
                             message.message
@@ -759,14 +710,11 @@ export default function ChatPage() {
                             }
                           )}
                         </p>
-
                       </div>
-
                     </div>
                   );
                 }
               )}
-
             </div>
 
             <div
@@ -774,14 +722,11 @@ export default function ChatPage() {
                 messagesEndRef
               }
             />
-
           </div>
 
           {/* INPUT */}
           <div className="border-t border-gray-200 bg-white p-4">
-
             <div className="flex items-end gap-3">
-
               <textarea
                 value={
                   newMessage
@@ -792,14 +737,12 @@ export default function ChatPage() {
                   )
                 }
                 onKeyDown={(e) => {
-
                   if (
                     e.key ===
                       "Enter" &&
                     !e.shiftKey
                   ) {
                     e.preventDefault();
-
                     sendMessage();
                   }
                 }}
@@ -822,20 +765,37 @@ export default function ChatPage() {
                   ? "Sending..."
                   : "Send"}
               </button>
-
             </div>
 
             <p className="mt-2 text-xs text-gray-400">
               Press Enter to send • Shift +
               Enter for a new line
             </p>
-
           </div>
-
         </div>
-
       </section>
-
     </main>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#f7faf9]">
+          <div className="text-center">
+            <div className="text-5xl">
+              💬
+            </div>
+
+            <p className="mt-4 font-semibold text-[#187052]">
+              Opening chat...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <ChatContent />
+    </Suspense>
   );
 }
