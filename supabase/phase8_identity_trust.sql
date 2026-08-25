@@ -89,16 +89,17 @@ grant execute on function public.refresh_ecomatch_trust_score(uuid) to authentic
 -- Reassert seller gates server-side.
 create or replace function public.enforce_listing_trust_rules()
 returns trigger language plpgsql security definer set search_path=public as $$
-declare v_status text; v_active_count integer; v_month_count integer;
+declare v_status text; v_active_count integer;
 begin
   select coalesce(verification_status,'unverified') into v_status from profiles where id=new.seller_id;
   v_status := coalesce(v_status,'unverified');
   if v_status <> 'verified' then
-    if coalesce(new.price,0) > 1000 then raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 1000 require EcoMatch Identity Verification.'; end if;
+    if coalesce(new.price,0) > 10000 then raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 10000 require EcoMatch Identity Verification.'; end if;
     select count(*) into v_active_count from products where seller_id=new.seller_id and status in ('pending','approved');
-    if v_active_count >= 5 then raise exception 'UNVERIFIED_ACTIVE_LIMIT: Unverified accounts can have at most 5 active listings.'; end if;
-    select count(*) into v_month_count from products where seller_id=new.seller_id and created_at >= date_trunc('month',now());
-    if v_month_count >= 15 then raise exception 'UNVERIFIED_MONTHLY_LIMIT: Unverified accounts can create at most 15 listings per month.'; end if;
+    if v_active_count >= 30 then raise exception 'UNVERIFIED_ACTIVE_LIMIT: Unverified accounts can have at most 30 active listings.'; end if;
+  else
+    select count(*) into v_active_count from products where seller_id=new.seller_id and status in ('pending','approved');
+    if v_active_count >= 300 then raise exception 'VERIFIED_ACTIVE_LIMIT: Verified accounts can have at most 300 active listings.'; end if;
   end if;
   return new;
 end $$;

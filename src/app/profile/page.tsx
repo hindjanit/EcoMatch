@@ -214,7 +214,7 @@ export default function ProfilePage() {
                 <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-950/30 p-4">
                   <h4 className="text-xs font-bold text-amber-300">Unlock Full Trading Limits</h4>
                   <p className="mt-1 text-xs text-white/60">
-                    Unverified accounts have a ₹1,000 listing cap. Complete quick paperless UIDAI verification to lift restrictions.
+                    Unverified accounts can post up to 30 listings with a ₹10,000 cap. Complete quick paperless UIDAI verification to post up to 300 listings with no price cap.
                   </p>
                   <Link
                     href="/verify-identity"

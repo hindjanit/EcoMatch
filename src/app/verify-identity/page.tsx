@@ -250,7 +250,7 @@ export default function VerifyIdentityPage() {
             </div>
             <h2 className="mt-4 text-2xl font-black text-white">Identity Verified Successfully</h2>
             <p className="mt-2 text-xs text-white/60">
-              ₹1,000 listing restriction and unverified volume caps have been completely removed.
+              ₹10,000 listing restriction and 30-post caps have been lifted. You can now post up to 300 listings with no price cap.
             </p>
             <Link
               href="/profile"

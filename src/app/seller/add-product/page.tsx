@@ -663,8 +663,9 @@ export default function AddProductPage() {
 
       // -----------------------------
       // TRUST / IDENTITY LISTING GATE
-      // Unverified sellers: <= ₹1000, <= 5 active, <= 15/month.
-      // The same rule is also enforced by a DB trigger in Phase 7A.
+      // Unverified sellers: <= ₹10,000, <= 30 active posts.
+      // Verified sellers: <= 300 active posts.
+      // The same rule is also enforced by a DB trigger.
       // -----------------------------
       const { data: sellerProfile, error: sellerProfileError } = await supabase
         .from("profiles")
@@ -678,44 +679,33 @@ export default function AddProductPage() {
 
       const isIdentityVerified = sellerProfile?.verification_status === "verified";
 
+      const { count: activeCount, error: activeCountError } = await supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .in("status", ["pending", "approved"]);
+
+      if (activeCountError) {
+        throw new Error(activeCountError?.message || "Could not check listing limits.");
+      }
+
       if (!isIdentityVerified) {
-        if (Number(price) > 1000) {
+        if (Number(price) > 10000) {
           setLoading(false);
-          setError("Identity Verification is required to list products above ₹1,000.");
+          setError("Identity Verification is required to list products above ₹10,000.");
           window.setTimeout(() => router.push("/verify-identity"), 1200);
           return;
         }
 
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-
-        const [{ count: activeCount, error: activeCountError }, { count: monthCount, error: monthCountError }] = await Promise.all([
-          supabase
-            .from("products")
-            .select("id", { count: "exact", head: true })
-            .eq("seller_id", user.id)
-            .in("status", ["pending", "approved"]),
-          supabase
-            .from("products")
-            .select("id", { count: "exact", head: true })
-            .eq("seller_id", user.id)
-            .gte("created_at", monthStart.toISOString()),
-        ]);
-
-        if (activeCountError || monthCountError) {
-          throw new Error(activeCountError?.message || monthCountError?.message || "Could not check listing limits.");
-        }
-
-        if ((activeCount || 0) >= 5) {
+        if ((activeCount || 0) >= 30) {
           setLoading(false);
-          setError("Unverified accounts can keep up to 5 active listings. Verify your identity to continue selling.");
+          setError("Unverified accounts can keep up to 30 active listings. Verify your identity to unlock up to 300 listings.");
           return;
         }
-
-        if ((monthCount || 0) >= 15) {
+      } else {
+        if ((activeCount || 0) >= 300) {
           setLoading(false);
-          setError("Unverified accounts can create up to 15 listings per month. Verify your identity to remove this restriction.");
+          setError("Verified accounts can have up to 300 active listings. Please manage or remove older listings.");
           return;
         }
       }
