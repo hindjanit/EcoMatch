@@ -1,487 +1,173 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import Interface2_CircularOrbit from "@/components/Interface2_CircularOrbit";
+// Saved presets library:
+// - Interface 1: import Interface1_CinematicStory from "@/components/Interface1_CinematicStory";
+// - Interface 2 (Final Active): import Interface2_CircularOrbit from "@/components/Interface2_CircularOrbit";
+// - Interface 3: import Interface3_DigitalTwin from "@/components/Interface3_DigitalTwin";
+// - Interface 4: import Interface4_LifecycleStory from "@/components/Interface4_LifecycleStory";
+// - Interface 5: import Interface5_CinematicHero from "@/components/Interface5_CinematicHero";
+// - Interface 6: import Interface6_SustainableHero from "@/components/Interface6_SustainableHero";
+// - Interface 7: import Interface7_OneProductJourney from "@/components/Interface7_OneProductJourney";
+// - Interface 8: import Interface8_ObjectToAsset from "@/components/Interface8_ObjectToAsset";
+import { CATEGORY_CARDS } from "@/lib/catalog";
+import {
+  Sparkles,
+  ShieldCheck,
+  Cpu,
+  Layers,
+  ArrowRight,
+  Boxes,
+  Zap,
+  CheckCircle2,
+  Lock,
+  ArrowUpRight,
+  TrendingUp,
+  Activity,
+  Globe,
+  Database,
+  RotateCw,
+} from "lucide-react";
 
-const categories = [
-  "Metals",
-  "Plastic",
-  "Wood",
-  "Electrical Materials",
-  "Machinery & Equipment",
-  "Construction Materials",
-  "Packaging Materials",
-  "Other",
-];
+const categories = CATEGORY_CARDS;
 
 export default function Home() {
   const router = useRouter();
 
-  const supabase = useMemo(() => createClient(), []);
-
-  // =====================================================
-  // AUTH STATE
-  // =====================================================
-
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function checkUser() {
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (!mounted) return;
-
-        if (userError || !user) {
-          setIsLoggedIn(false);
-          setUserRole(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        setIsLoggedIn(true);
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (!mounted) return;
-
-        if (profileError) {
-          console.error("Profile fetch error:", profileError);
-          setUserRole(null);
-        } else {
-          setUserRole(profile?.role || null);
-        }
-
-        setAuthLoading(false);
-      } catch (error) {
-        console.error("Auth check error:", error);
-
-        if (mounted) {
-          setIsLoggedIn(false);
-          setUserRole(null);
-          setAuthLoading(false);
-        }
-      }
-    }
-
-    checkUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      checkUser();
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  // =====================================================
-  // DASHBOARD ROUTING
-  // =====================================================
-
-  function handleDashboard() {
-    if (userRole === "seller") {
-      router.push("/seller/dashboard");
-      return;
-    }
-
-    if (userRole === "buyer") {
-      router.push("/buyer/dashboard");
-      return;
-    }
-
-    // Fallback in case profile role is missing
-    router.push("/marketplace");
-  }
-
-  // =====================================================
-  // LOGOUT
-  // =====================================================
-
-  async function handleLogout() {
-    try {
-      setAuthLoading(true);
-
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.error("Logout error:", error);
-        return;
-      }
-
-      setIsLoggedIn(false);
-      setUserRole(null);
-
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
   return (
-    <main className="min-h-screen bg-[#f7faf9] text-[#163038]">
-      {/* ================================================= */}
-      {/* NAVBAR */}
-      {/* ================================================= */}
+    <main className="eco-page min-h-screen text-white relative pb-20">
+      <Navbar />
 
-      <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 px-8 py-5 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <button
-            onClick={() => router.push("/")}
-            className="text-2xl font-bold text-[#187052]"
-          >
-            EcoMatch
-          </button>
+      {/* ========================================================= */}
+      {/* 1. CONTINUOUS 3D CIRCULAR ORBIT JOURNEY (INTERFACE 2)     */}
+      {/* ========================================================= */}
+      <Interface2_CircularOrbit />
 
-          <div className="hidden gap-7 text-sm font-semibold text-gray-600 md:flex">
-            <button
-              onClick={() => router.push("/marketplace")}
-              className="transition hover:text-[#187052]"
+      {/* ========================================================= */}
+      {/* 2. CONTINUOUS VALUE STREAM: VERIFIED CATEGORIES           */}
+      {/* ========================================================= */}
+      <section id="experience" className="relative px-4 py-28 sm:px-6 lg:px-8 border-t border-white/10 bg-[#06080d]">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-widest text-sky-300">
+                ACTIVE CIRCULAR STREAMS
+              </span>
+              <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl text-white">
+                From excess stock to high-value industrial input.
+              </h2>
+              <p className="mt-3 text-sm text-slate-400 leading-relaxed">
+                EcoMatch bridges decommissioned enterprise supply with verified secondary procurement.
+              </p>
+            </div>
+
+            <Link
+              href="/marketplace"
+              className="flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-sky-300 transition group"
             >
-              Marketplace
-            </button>
-
-            <a
-              href="#how-it-works"
-              className="transition hover:text-[#187052]"
-            >
-              How It Works
-            </a>
-
-            <a
-              href="#about"
-              className="transition hover:text-[#187052]"
-            >
-              About
-            </a>
+              Explore Full Marketplace Catalog
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </Link>
           </div>
 
-          {/* AUTH BUTTONS */}
-
-          <div className="flex items-center gap-3">
-            {authLoading ? (
-              <div className="h-10 w-24 animate-pulse rounded-lg bg-gray-200" />
-            ) : isLoggedIn ? (
-              <>
-                <button
-                  onClick={handleDashboard}
-                  className="rounded-lg bg-[#187052] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#125c43]"
-                >
-                  Dashboard
-                </button>
-
-                <button
-                  onClick={handleLogout}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => router.push("/login")}
-                className="rounded-lg bg-[#187052] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#125c43]"
-              >
-                Login
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {/* ================================================= */}
-      {/* HERO SECTION */}
-      {/* ================================================= */}
-
-      <section className="px-8 py-24 text-center">
-        <p className="mb-4 text-sm font-bold tracking-wider text-[#25a675]">
-          INDUSTRIAL REUSE MARKETPLACE
-        </p>
-
-        <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-tight md:text-6xl">
-          Find the Right Material.
-          <br />
-
-          <span className="text-[#187052]">
-            Give Surplus a Second Life.
-          </span>
-        </h1>
-
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-          EcoMatch connects organisations to exchange reusable and industrial
-          materials using AI classification, smart matching, verified listings
-          and transparent ownership records.
-        </p>
-
-        {/* Main Actions */}
-
-        <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-          <button
-            onClick={() => router.push("/marketplace")}
-            className="rounded-xl bg-[#187052] px-8 py-4 font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#125c43]"
-          >
-            🛒 I Want to Buy
-          </button>
-
-          <button
-            onClick={() => {
-              if (!isLoggedIn) {
-                router.push("/login");
-                return;
-              }
-
-              if (userRole === "seller") {
-                router.push("/seller/dashboard");
-              } else {
-                router.push("/marketplace");
-              }
-            }}
-            className="rounded-xl border-2 border-[#187052] bg-white px-8 py-4 font-semibold text-[#187052] transition hover:bg-[#eef9f4]"
-          >
-            📦 I Want to Sell
-          </button>
-        </div>
-
-        {/* Trust Indicators */}
-
-        <div className="mx-auto mt-12 flex max-w-2xl flex-wrap justify-center gap-5 text-sm font-medium text-gray-600">
-          <span>✓ Verified Listings</span>
-          <span>✓ Direct Buyer–Seller Chat</span>
-          <span>✓ AI Waste Classification</span>
-          <span>✓ Blockchain Ownership Ledger</span>
-          <span>✓ Free Marketplace</span>
-        </div>
-      </section>
-
-      {/* ================================================= */}
-      {/* CATEGORIES */}
-      {/* ================================================= */}
-
-      <section className="px-8 pb-24">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-10 text-center">
-            <p className="text-sm font-bold tracking-wide text-[#187052]">
-              BROWSE MATERIALS
-            </p>
-
-            <h2 className="mt-2 text-3xl font-bold">
-              Explore Materials
-            </h2>
-
-            <p className="mx-auto mt-3 max-w-xl text-gray-600">
-              Browse verified industrial materials across different categories.
-            </p>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => router.push("/marketplace")}
-                className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:border-[#b9ddce] hover:shadow-md"
+              <Link
+                key={category.name}
+                href="/marketplace"
+                className="card-3d group relative flex min-h-52 flex-col justify-between rounded-3xl border border-white/10 bg-[#0c101a]/70 p-6 shadow-xl backdrop-blur-xl transition duration-300 hover:border-sky-400/40 hover:bg-[#0f1422]"
               >
-                <div className="mb-3 text-3xl">
-                  ♻️
+                <div className="flex items-center justify-between">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
+                    {category.icon}
+                  </span>
+                  <ArrowUpRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-sky-400" />
                 </div>
-
-                <h3 className="font-bold text-[#163038]">
-                  {category}
-                </h3>
-
-                <p className="mt-2 text-sm leading-5 text-gray-500">
-                  Find reusable {category.toLowerCase()} materials
-                </p>
-              </button>
+                <div>
+                  <h3 className="text-xl font-bold text-white group-hover:text-sky-300 transition-colors">
+                    {category.name}
+                  </h3>
+                  <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">{category.detail}</p>
+                  <span className="mt-3 inline-block text-[11px] font-bold text-sky-400 opacity-80 group-hover:opacity-100">
+                    Browse verified lots →
+                  </span>
+                </div>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================================================= */}
-      {/* HOW IT WORKS */}
-      {/* ================================================= */}
-
-      <section
-        id="how-it-works"
-        className="border-y border-gray-200 bg-white px-8 py-20"
-      >
-        <div className="mx-auto max-w-6xl">
-          <div className="text-center">
-            <p className="text-sm font-bold tracking-wide text-[#187052]">
-              SIMPLE & TRANSPARENT
-            </p>
-
-            <h2 className="mt-2 text-3xl font-bold">
-              How EcoMatch Works
+      {/* ========================================================= */}
+      {/* 3. VERIFICATION & ARCHITECTURE BENTO                      */}
+      {/* ========================================================= */}
+      <section className="relative px-4 py-28 sm:px-6 lg:px-8 border-t border-white/10 bg-[#05070a]">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-3xl">
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-widest text-emerald-400">
+              ZERO-FRAUD INFRASTRUCTURE
+            </span>
+            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl text-white">
+              Deterministic verification for high-value B2B circular deals.
             </h2>
+            <p className="mt-3 text-sm text-slate-400 leading-relaxed">
+              Every exchange is governed by cryptographic identity checks, multi-modal vision analysis, and escrow lock.
+            </p>
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {/* STEP 1 */}
-
-            <div className="rounded-2xl border border-gray-200 p-7 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e1f4ed] text-xl font-bold text-[#187052]">
-                1
+            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0a0f1d]/80 p-8 shadow-2xl backdrop-blur-xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 text-sky-400">
+                <Cpu className="h-6 w-6" />
               </div>
-
-              <h3 className="mt-5 text-lg font-bold">
-                List or Search
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                Sellers list surplus materials while buyers search
-                according to their requirements.
+              <h3 className="mt-6 text-xl font-black text-white">Multi-Modal Vision Engine</h3>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                Gemini Vision analyzes photographic input, grading cosmetic wear, structural flaws, and material density with confidence scoring.
               </p>
+              <div className="mt-6 flex items-center gap-2 rounded-xl border border-sky-400/20 bg-sky-500/5 p-3 text-xs text-sky-300 font-mono">
+                <Sparkles className="h-4 w-4" />
+                <span>94.8% Identification Precision</span>
+              </div>
             </div>
 
-            {/* STEP 2 */}
-
-            <div className="rounded-2xl border border-gray-200 p-7 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e1f4ed] text-xl font-bold text-[#187052]">
-                2
+            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0a0f1d]/80 p-8 shadow-2xl backdrop-blur-xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400">
+                <ShieldCheck className="h-6 w-6" />
               </div>
-
-              <h3 className="mt-5 text-lg font-bold">
-                Classify & Verify
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                AI classifies surplus material, while verified listings
-                are prepared for transparent ownership tracking.
+              <h3 className="mt-6 text-xl font-black text-white">UIDAI e-KYC & Escrow</h3>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                Aadhaar QR cryptographic verification + locked escrow deals ensure zero phantom buyers or dishonest scrap deliveries.
               </p>
+              <div className="mt-6 flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-3 text-xs text-emerald-300 font-mono">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Deterministic Identity Match</span>
+              </div>
             </div>
 
-            {/* STEP 3 */}
-
-            <div className="rounded-2xl border border-gray-200 p-7 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e1f4ed] text-xl font-bold text-[#187052]">
-                3
+            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0a0f1d]/80 p-8 shadow-2xl backdrop-blur-xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-400/30 bg-indigo-500/10 text-indigo-400">
+                <Database className="h-6 w-6" />
               </div>
-
-              <h3 className="mt-5 text-lg font-bold">
-                Exchange Transparently
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                Organisations connect directly and the ownership ledger
-                provides a transparent, tamper-evident record trail.
+              <h3 className="mt-6 text-xl font-black text-white">Cryptographic Ledger</h3>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                SHA-256 hash chains immortalize physical handover coordinates, timestamps, and transfer records for ESG audit readiness.
               </p>
+              <div className="mt-6 flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-3 text-xs text-indigo-300 font-mono">
+                <Activity className="h-4 w-4" />
+                <span>Immutable Block Proofs</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================================================= */}
-      {/* AI SECTION */}
-      {/* ================================================= */}
-
-      <section className="px-8 py-20">
-        <div className="mx-auto max-w-6xl rounded-3xl bg-[#e1f4ed] px-8 py-14 text-center md:px-16">
-          <p className="font-bold tracking-wide text-[#187052]">
-            POWERED BY AI
-          </p>
-
-          <h2 className="mx-auto mt-3 max-w-3xl text-3xl font-bold md:text-4xl">
-            Classify waste. Match reusable materials. Track ownership.
-          </h2>
-
-          <p className="mx-auto mt-4 max-w-2xl leading-7 text-gray-600">
-            EcoMatch classifies surplus materials, matches buyer requirements
-            with verified listings, and exposes a transparent ownership ledger
-            for approved marketplace records.
-          </p>
-
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <button
-              onClick={() => router.push("/ai-classify")}
-              className="rounded-xl bg-[#187052] px-7 py-3 font-semibold text-white transition hover:bg-[#125c43]"
-            >
-              AI Waste Classifier →
-            </button>
-
-            <button
-              onClick={() => router.push("/ai-match")}
-              className="rounded-xl border border-[#187052] bg-white px-7 py-3 font-semibold text-[#187052] transition hover:bg-[#f7faf9]"
-            >
-              AI Material Matching
-            </button>
-
-            <button
-              onClick={() => router.push("/ledger")}
-              className="rounded-xl border border-[#187052] bg-white px-7 py-3 font-semibold text-[#187052] transition hover:bg-[#f7faf9]"
-            >
-              View Ownership Ledger
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================= */}
-      {/* ABOUT */}
-      {/* ================================================= */}
-
-      <section
-        id="about"
-        className="border-t border-gray-200 bg-white px-8 py-20"
-      >
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="text-sm font-bold tracking-wide text-[#187052]">
-            ABOUT ECOMATCH
-          </p>
-
-          <h2 className="mt-3 text-3xl font-bold">
-            Turning industrial surplus into opportunity.
-          </h2>
-
-          <p className="mx-auto mt-5 max-w-3xl leading-7 text-gray-600">
-            EcoMatch is a marketplace designed to make reusable,
-            recyclable and industrial materials easier to discover,
-            verify and exchange. Our goal is to reduce material waste
-            while helping buyers find useful resources and sellers give
-            surplus materials a second life.
-          </p>
-        </div>
-      </section>
-
-      {/* ================================================= */}
-      {/* FOOTER */}
-      {/* ================================================= */}
-
-      <footer className="border-t border-gray-200 bg-[#163038] px-8 py-10 text-center text-white">
-        <p className="text-xl font-bold text-[#6ed3a9]">
-          EcoMatch
-        </p>
-
-        <p className="mt-2 text-sm text-gray-300">
-          AI + Blockchain Marketplace for Circular Industrial Materials
-        </p>
-
-        <p className="mt-5 text-xs text-gray-400">
-          Team High On Codes
-        </p>
-
-        <p className="mt-2 text-[10px] tracking-wide text-gray-500">
-          Developed by Janit
-        </p>
-      </footer>
+      <Footer />
+      <MobileBottomNav />
     </main>
   );
 }

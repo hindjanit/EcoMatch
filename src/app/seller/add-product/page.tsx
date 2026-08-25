@@ -1,28 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { MARKETPLACE_CATEGORIES, PRODUCT_CONDITIONS } from "@/lib/catalog";
+import { calculateProductRisk } from "@/lib/productRisk";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
-const categories = [
-  "Metals",
-  "Plastic",
-  "Wood",
-  "Industrial Goods",
-  "Electrical Materials",
-  "Machinery & Equipment",
-  "Construction Materials",
-  "Packaging Materials",
-  "Other",
-];
+const categories = MARKETPLACE_CATEGORIES;
+const conditions = PRODUCT_CONDITIONS;
 
-const conditions = [
-  "New",
-  "Like New",
-  "Good",
-  "Used",
-  "For Parts / Repair",
-];
+type VisionAnalysis = {
+  productName: string;
+  category: string;
+  productType: string;
+  brand: string;
+  condition: string;
+  conditionConfidence: number;
+  classificationConfidence: number;
+  visibleIssues: string[];
+  suggestedTitle: string;
+  suggestedDescription: string;
+  suggestedSpecifications: string[];
+  reusePotential: "High" | "Medium" | "Low" | string;
+  notes: string;
+};
+
+type PriceAnalysis = {
+  referencePrice: number;
+  marketLow: number;
+  marketHigh: number;
+  marketPriceFound: boolean;
+  productMatched: string;
+  matchQuality: string;
+  fairMin: number;
+  fairMax: number;
+  sellerPrice: number;
+  verdict: string;
+  confidence: number;
+  ageFactor: number;
+  conditionFactor: number;
+  reason: string;
+  researchSummary: string;
+  sources: { title: string; url: string }[];
+};
 
 export default function AddProductPage() {
   const supabase = createClient();
@@ -32,6 +55,11 @@ export default function AddProductPage() {
   // PRODUCT DETAILS
   // -----------------------------
 
+  const [listingMode, setListingMode] = useState<"individual" | "b2b">("individual");
+  const [allowLotSplit, setAllowLotSplit] = useState(true);
+  const [minOrderQty, setMinOrderQty] = useState("");
+  const [isEsgEligible, setIsEsgEligible] = useState(true);
+
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [material, setMaterial] = useState("");
@@ -39,9 +67,11 @@ export default function AddProductPage() {
   const [specifications, setSpecifications] = useState("");
 
   const [quantity, setQuantity] = useState("");
-  const [quantityUnit, setQuantityUnit] = useState("kg");
+  const [quantityUnit, setQuantityUnit] = useState("piece");
 
   const [price, setPrice] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [monthsUsed, setMonthsUsed] = useState("");
   const [isNegotiable, setIsNegotiable] = useState(false);
 
   const [condition, setCondition] = useState("");
@@ -57,6 +87,16 @@ export default function AddProductPage() {
   } | null>(null);
 
   // -----------------------------
+  // REAL AI IMAGE ANALYSIS
+  // -----------------------------
+
+  const [visionAnalysis, setVisionAnalysis] = useState<VisionAnalysis | null>(null);
+  const [visionLoading, setVisionLoading] = useState(false);
+
+  const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+
+  // -----------------------------
   // LOCATION
   // -----------------------------
 
@@ -66,6 +106,16 @@ export default function AddProductPage() {
   const [longitude, setLongitude] = useState<number | null>(null);
 
   const [locationLoading, setLocationLoading] = useState(false);
+  const [locationMode, setLocationMode] = useState<"live" | "manual">("live");
+  const [aiApplied, setAiApplied] = useState(false);
+  const [toast, setToast] = useState("");
+  const productDetailsRef = useRef<HTMLDivElement | null>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<
+    { id: string; label: string; latitude: number; longitude: number }[]
+  >([]);
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState("");
+  const [locationSelected, setLocationSelected] = useState(false);
 
   // -----------------------------
   // IMAGES
@@ -83,184 +133,262 @@ export default function AddProductPage() {
   const [error, setError] = useState("");
 
   // =====================================================
-  // AI MATERIAL CLASSIFICATION
+  // AUTO-PREFILL FROM HOMEPAGE CLASSIFIER
   // =====================================================
 
-  function classifyMaterial() {
-    const text = `
-      ${title}
-      ${material}
-      ${description}
-      ${specifications}
-    `.toLowerCase();
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("ecomatch_prefill_product");
+      if (stored) {
+        const item = JSON.parse(stored);
+        if (item.title) setTitle(item.title);
+        if (item.category) setCategory(item.category);
+        if (item.material) setMaterial(item.material);
+        if (item.condition) setCondition(item.condition);
+        if (item.price) setPrice(String(item.price));
+        if (item.description) setDescription(item.description);
+        if (item.specifications) setSpecifications(item.specifications);
+        if (item.quantity) setQuantity(String(item.quantity));
+        if (item.quantityUnit) setQuantityUnit(item.quantityUnit);
+        if (item.imagePreview) setPreviews([item.imagePreview]);
+        setAiApplied(true);
+        setMessage("✓ Auto-populated product details from AI Vision analysis! Review and submit.");
+        sessionStorage.removeItem("ecomatch_prefill_product");
+      }
+    } catch (e) {
+      console.error("Prefill error:", e);
+    }
+  }, []);
 
-    if (!title.trim() && !material.trim() && !description.trim()) {
-      setError(
-        "Please enter product title, material or description before classification."
-      );
+  // =====================================================
+  // FREE LOCATION AUTOCOMPLETE (PHOTON / OPENSTREETMAP)
+  // =====================================================
+
+  useEffect(() => {
+    if (locationMode !== "manual") {
+      setLocationSuggestions([]);
+      setLocationSearchError("");
+      return;
+    }
+
+    const query = locationName.trim();
+
+    if (locationSelected || query.length < 3) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLocationSearchLoading(true);
+      setLocationSearchError("");
+
+      try {
+        const response = await fetch(
+          `/api/location/search?q=${encodeURIComponent(query)}`,
+          { signal: controller.signal }
+        );
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "Location suggestions could not be loaded.");
+        }
+
+        setLocationSuggestions(Array.isArray(payload?.suggestions) ? payload.suggestions : []);
+      } catch (searchError) {
+        if ((searchError as Error)?.name !== "AbortError") {
+          console.error("Location autocomplete error:", searchError);
+          setLocationSearchError(
+            searchError instanceof Error
+              ? searchError.message
+              : "Location suggestions could not be loaded."
+          );
+        }
+      } finally {
+        setLocationSearchLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [locationMode, locationName, locationSelected]);
+
+  function selectLocationSuggestion(suggestion: {
+    label: string;
+    latitude: number;
+    longitude: number;
+  }) {
+    setLocationName(suggestion.label);
+    setLatitude(suggestion.latitude);
+    setLongitude(suggestion.longitude);
+    setLocationSelected(true);
+    setLocationSuggestions([]);
+    setLocationSearchError("");
+    setToast("✓ Location selected successfully");
+    window.setTimeout(() => setToast(""), 2200);
+  }
+
+  // =====================================================
+  // REAL AI IMAGE ANALYSIS
+  // =====================================================
+
+  async function analyzeProductImage() {
+    if (selectedImages.length === 0) {
+      setError("Please upload at least one clear product image before using AI Vision.");
       return;
     }
 
     setError("");
+    setMessage("");
+    setVisionLoading(true);
 
-    let detectedCategory = "Other";
-    let detectedMaterial = material.trim() || "Unknown Material";
-    let confidence = 70;
+    try {
+      const formData = new FormData();
+      formData.append("image", selectedImages[0]);
+      formData.append(
+        "sellerText",
+        [title, material, description, specifications]
+          .filter(Boolean)
+          .join("\n")
+      );
 
-    // METALS
-    if (
-      text.includes("aluminium") ||
-      text.includes("aluminum") ||
-      text.includes("steel") ||
-      text.includes("iron") ||
-      text.includes("copper") ||
-      text.includes("brass") ||
-      text.includes("metal")
-    ) {
-      detectedCategory = "Metals";
-      confidence = 94;
+      const response = await fetch("/api/ai/analyze-product", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (text.includes("aluminium") || text.includes("aluminum")) {
-        detectedMaterial = "Aluminium";
-        confidence = 97;
-      } else if (text.includes("steel")) {
-        detectedMaterial = "Steel";
-        confidence = 96;
-      } else if (text.includes("iron")) {
-        detectedMaterial = "Iron";
-        confidence = 95;
-      } else if (text.includes("copper")) {
-        detectedMaterial = "Copper";
-        confidence = 96;
-      } else if (text.includes("brass")) {
-        detectedMaterial = "Brass";
-        confidence = 94;
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "AI image analysis failed.");
       }
-    }
 
-    // PLASTIC
-    else if (
-      text.includes("plastic") ||
-      text.includes("hdpe") ||
-      text.includes("pet") ||
-      text.includes("pvc") ||
-      text.includes("polypropylene")
-    ) {
-      detectedCategory = "Plastic";
-      confidence = 93;
+      const analysis = payload.analysis as VisionAnalysis;
 
-      if (text.includes("hdpe")) {
-        detectedMaterial = "HDPE Plastic";
-        confidence = 97;
-      } else if (text.includes("pvc")) {
-        detectedMaterial = "PVC Plastic";
-        confidence = 96;
-      } else if (text.includes("pet")) {
-        detectedMaterial = "PET Plastic";
-        confidence = 95;
-      } else if (text.includes("polypropylene")) {
-        detectedMaterial = "Polypropylene";
-        confidence = 95;
-      } else {
-        detectedMaterial = "Plastic";
+      setVisionAnalysis(analysis);
+
+      // Safe automatic fields: category + condition + classification state.
+      // Seller can explicitly apply the generated title/description/specifications.
+      setCategory(analysis.category);
+      setCondition(analysis.condition);
+
+      if (!material.trim() && analysis.productType) {
+        setMaterial(analysis.productType);
       }
+
+      setClassification({
+        category: analysis.category,
+        material: analysis.productType || analysis.productName,
+        confidence: analysis.classificationConfidence,
+      });
+
+      setMessage("✨ AI Vision analysis completed. Review the result before submitting.");
+    } catch (visionError) {
+      console.error("Vision analysis error:", visionError);
+      setError(
+        visionError instanceof Error
+          ? visionError.message
+          : "Could not analyze the product image."
+      );
+    } finally {
+      setVisionLoading(false);
+    }
+  }
+
+  function showToast(text: string) {
+    setToast(text);
+    window.setTimeout(() => setToast(""), 2600);
+  }
+
+  function applyVisionSuggestions() {
+    if (!visionAnalysis) return;
+
+    if (visionAnalysis.suggestedTitle) {
+      setTitle(visionAnalysis.suggestedTitle);
     }
 
-    // WOOD
-    else if (
-      text.includes("wood") ||
-      text.includes("timber") ||
-      text.includes("plywood") ||
-      text.includes("wooden")
-    ) {
-      detectedCategory = "Wood";
-      detectedMaterial = "Wood";
-      confidence = 94;
+    if (visionAnalysis.productType) {
+      setMaterial(visionAnalysis.productType);
     }
 
-    // ELECTRICAL / E-WASTE
-    else if (
-      text.includes("circuit") ||
-      text.includes("electronic") ||
-      text.includes("electrical") ||
-      text.includes("computer") ||
-      text.includes("pcb") ||
-      text.includes("cable") ||
-      text.includes("wire") ||
-      text.includes("e-waste")
-    ) {
-      detectedCategory = "Electrical Materials";
-      detectedMaterial = "Electronic / Electrical Material";
-      confidence = 92;
-
-      if (text.includes("pcb") || text.includes("circuit")) {
-        detectedMaterial = "Electronic Circuit / PCB";
-        confidence = 96;
-      } else if (text.includes("cable") || text.includes("wire")) {
-        detectedMaterial = "Electrical Cable / Wire";
-        confidence = 94;
-      }
+    if (visionAnalysis.suggestedDescription) {
+      setDescription(visionAnalysis.suggestedDescription);
     }
 
-    // MACHINERY
-    else if (
-      text.includes("machine") ||
-      text.includes("machinery") ||
-      text.includes("motor") ||
-      text.includes("pump") ||
-      text.includes("gearbox")
-    ) {
-      detectedCategory = "Machinery & Equipment";
-      detectedMaterial = material.trim() || "Machinery Component";
-      confidence = 91;
+    if (visionAnalysis.suggestedSpecifications?.length) {
+      setSpecifications(visionAnalysis.suggestedSpecifications.join("\n"));
     }
 
-    // CONSTRUCTION
-    else if (
-      text.includes("cement") ||
-      text.includes("brick") ||
-      text.includes("concrete") ||
-      text.includes("construction") ||
-      text.includes("tile")
-    ) {
-      detectedCategory = "Construction Materials";
-      detectedMaterial = material.trim() || "Construction Material";
-      confidence = 90;
-    }
-
-    // PACKAGING
-    else if (
-      text.includes("cardboard") ||
-      text.includes("packaging") ||
-      text.includes("carton") ||
-      text.includes("box")
-    ) {
-      detectedCategory = "Packaging Materials";
-      detectedMaterial = text.includes("cardboard")
-        ? "Cardboard"
-        : "Packaging Material";
-      confidence = 91;
-    }
-
-    // INDUSTRIAL
-    else if (
-      text.includes("industrial") ||
-      text.includes("factory") ||
-      text.includes("fabrication")
-    ) {
-      detectedCategory = "Industrial Goods";
-      detectedMaterial = material.trim() || "Industrial Material";
-      confidence = 86;
-    }
+    setCategory(visionAnalysis.category);
+    setCondition(visionAnalysis.condition);
 
     setClassification({
-      category: detectedCategory,
-      material: detectedMaterial,
-      confidence,
+      category: visionAnalysis.category,
+      material: visionAnalysis.productType || visionAnalysis.productName,
+      confidence: visionAnalysis.classificationConfidence,
     });
 
-    // Automatically set detected category
-    setCategory(detectedCategory);
+    setAiApplied(true);
+    setMessage("✓ AI suggestions applied. Please review and edit anything that is not accurate.");
+    showToast("AI data entered successfully");
+    window.setTimeout(() => {
+      productDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }
+
+  // =====================================================
+  // AI PRICE INTELLIGENCE
+  // =====================================================
+
+  async function analyzePrice() {
+    if (!price || Number(price) <= 0) {
+      setError("Please enter the seller asking price first.");
+      return;
+    }
+
+    if (!visionAnalysis && !title.trim()) {
+      setError("Analyze the product image or enter product details before checking price intelligence.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setPriceLoading(true);
+
+    try {
+      const response = await fetch("/api/ai/price-intelligence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          category,
+          productType: visionAnalysis?.productType || material,
+          brand: visionAnalysis?.brand || "Unknown",
+          condition,
+          description,
+          specifications,
+          sellerPrice: Number(price),
+          purchasePrice: Number(purchasePrice || 0),
+          monthsUsed: Number(monthsUsed || 0),
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Could not analyze the resale price.");
+      }
+
+      setPriceAnalysis(payload.analysis as PriceAnalysis);
+      setMessage("💰 AI Price Intelligence completed. Review the fair resale range before submitting.");
+    } catch (priceError) {
+      console.error("Price analysis error:", priceError);
+      setError(priceError instanceof Error ? priceError.message : "Could not analyze the resale price.");
+    } finally {
+      setPriceLoading(false);
+    }
   }
 
   // =====================================================
@@ -412,6 +540,8 @@ export default function AddProductPage() {
     );
 
     setPreviews(newPreviews);
+    setVisionAnalysis(null);
+    setPriceAnalysis(null);
 
     setError("");
   }
@@ -428,6 +558,8 @@ export default function AddProductPage() {
     );
 
     setPreviews(newPreviews);
+    setVisionAnalysis(null);
+    setPriceAnalysis(null);
   }
 
   // =====================================================
@@ -490,7 +622,7 @@ export default function AddProductPage() {
 
     if (!classification) {
       setError(
-        "Please classify the material before submitting the listing."
+        "Please classify the product before submitting the listing."
       );
       return;
     }
@@ -502,13 +634,13 @@ export default function AddProductPage() {
       return;
     }
 
-    if (
-      latitude === null ||
-      longitude === null
-    ) {
-      setError(
-        "Please click 'Use My Current Location' before submitting the listing."
-      );
+    if (locationMode === "live" && (latitude === null || longitude === null)) {
+      setError("Please use your current location or switch to manual location.");
+      return;
+    }
+
+    if (locationMode === "manual" && !locationName.trim()) {
+      setError("Please enter your area or city for the manual location.");
       return;
     }
 
@@ -530,6 +662,65 @@ export default function AddProductPage() {
       }
 
       // -----------------------------
+      // TRUST / IDENTITY LISTING GATE
+      // Unverified sellers: <= ₹1000, <= 5 active, <= 15/month.
+      // The same rule is also enforced by a DB trigger in Phase 7A.
+      // -----------------------------
+      const { data: sellerProfile, error: sellerProfileError } = await supabase
+        .from("profiles")
+        .select("verification_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (sellerProfileError) {
+        throw new Error(`Could not check seller verification: ${sellerProfileError.message}`);
+      }
+
+      const isIdentityVerified = sellerProfile?.verification_status === "verified";
+
+      if (!isIdentityVerified) {
+        if (Number(price) > 1000) {
+          setLoading(false);
+          setError("Identity Verification is required to list products above ₹1,000.");
+          window.setTimeout(() => router.push("/verify-identity"), 1200);
+          return;
+        }
+
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        const [{ count: activeCount, error: activeCountError }, { count: monthCount, error: monthCountError }] = await Promise.all([
+          supabase
+            .from("products")
+            .select("id", { count: "exact", head: true })
+            .eq("seller_id", user.id)
+            .in("status", ["pending", "approved"]),
+          supabase
+            .from("products")
+            .select("id", { count: "exact", head: true })
+            .eq("seller_id", user.id)
+            .gte("created_at", monthStart.toISOString()),
+        ]);
+
+        if (activeCountError || monthCountError) {
+          throw new Error(activeCountError?.message || monthCountError?.message || "Could not check listing limits.");
+        }
+
+        if ((activeCount || 0) >= 5) {
+          setLoading(false);
+          setError("Unverified accounts can keep up to 5 active listings. Verify your identity to continue selling.");
+          return;
+        }
+
+        if ((monthCount || 0) >= 15) {
+          setLoading(false);
+          setError("Unverified accounts can create up to 15 listings per month. Verify your identity to remove this restriction.");
+          return;
+        }
+      }
+
+      // -----------------------------
       // UPDATE SELLER LOCATION
       // -----------------------------
 
@@ -542,7 +733,7 @@ export default function AddProductPage() {
           longitude,
           location_name:
             locationName.trim() ||
-            "Current Location",
+            (locationMode === "live" ? "Current Location" : "Manual Location"),
         })
         .eq("id", user.id);
 
@@ -555,6 +746,16 @@ export default function AddProductPage() {
       // -----------------------------
       // CREATE PRODUCT
       // -----------------------------
+
+      const risk = calculateProductRisk({
+        askingPrice: Number(price),
+        referencePrice: priceAnalysis?.referencePrice,
+        fairMin: priceAnalysis?.fairMin,
+        fairMax: priceAnalysis?.fairMax,
+        priceConfidence: priceAnalysis?.confidence,
+        visionConfidence: visionAnalysis?.classificationConfidence ?? classification?.confidence,
+        visibleIssues: visionAnalysis?.visibleIssues,
+      });
 
       const {
         data: product,
@@ -581,10 +782,25 @@ export default function AddProductPage() {
           quantity_unit: quantityUnit,
 
           price: Number(price),
+          purchase_price: purchasePrice ? Number(purchasePrice) : null,
+          months_used: monthsUsed ? Number(monthsUsed) : null,
 
           is_negotiable: isNegotiable,
 
           condition,
+
+          ai_reference_price: priceAnalysis?.referencePrice ?? null,
+          ai_fair_price_min: priceAnalysis?.fairMin ?? null,
+          ai_fair_price_max: priceAnalysis?.fairMax ?? null,
+          ai_price_verdict: priceAnalysis?.verdict ?? null,
+          ai_price_confidence: priceAnalysis?.confidence ?? null,
+          ai_price_reason: priceAnalysis?.reason ?? null,
+          ai_price_sources: priceAnalysis?.sources ?? null,
+          ai_price_checked_at: priceAnalysis ? new Date().toISOString() : null,
+
+          ai_review_bucket: risk.bucket,
+          ai_risk_score: risk.score,
+          ai_risk_reasons: risk.reasons,
 
           status: "pending",
         })
@@ -703,54 +919,72 @@ export default function AddProductPage() {
   // =====================================================
 
   return (
-    <main className="min-h-screen bg-[#f7faf9]">
+    <main className="eco-page min-h-screen text-[#163038] pb-24 relative overflow-hidden">
+      <Navbar />
 
-      {/* HEADER */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
 
-          <button
-            onClick={() =>
-              router.push(
-                "/seller/dashboard"
-              )
-            }
-            className="text-2xl font-bold text-[#187052]"
-          >
-            EcoMatch
-          </button>
-
-          <button
-            onClick={() =>
-              router.push(
-                "/seller/dashboard"
-              )
-            }
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            ← Dashboard
-          </button>
-
+      {toast && (
+        <div className="fixed right-5 top-20 z-[100] rounded-2xl border border-emerald-400/30 bg-[#061e16] px-5 py-3 font-bold text-emerald-300 shadow-2xl backdrop-blur-xl">
+          ✓ {toast}
         </div>
-      </header>
+      )}
 
       {/* FORM */}
-      <section className="mx-auto max-w-5xl px-6 py-8">
-
+      <section className="relative mx-auto max-w-5xl px-4 pt-28 sm:px-6 lg:px-8">
         <div className="mb-8">
-
-          <p className="text-sm font-bold tracking-wide text-[#187052]">
-            SELL MATERIALS
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold text-[#163038]">
-            Add Product Listing
+          <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+            CIRCULAR SUPPLY INGESTION
+          </span>
+          <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
+            List Material for <span className="text-emerald-400">Verification</span>
           </h1>
-
-          <p className="mt-2 text-gray-600">
-            Add product details, classify the material and upload authentic images for verification.
+          <p className="mt-1 text-xs sm:text-sm text-white/60">
+            Upload a product photo, let EcoMatch Vision auto-classify specs, then review the listing before verification.
           </p>
+        </div>
 
+        {/* LISTING TYPE SELECTOR (B2B VS INDIVIDUAL) */}
+        <div className="mb-6 rounded-2xl border border-emerald-500/25 bg-[#061812]/90 p-4 shadow-xl backdrop-blur-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Listing Mode / Supplier Type
+              </h3>
+              <p className="text-xs text-white/60">
+                Choose your listing workflow for optimized classification and discovery
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-1">
+              <button
+                type="button"
+                onClick={() => setListingMode("individual")}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  listingMode === "individual"
+                    ? "bg-white text-slate-950 shadow-md"
+                    : "text-white/60 hover:text-white"
+                }`}
+              >
+                👤 Individual (P2P Item)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setListingMode("b2b");
+                  setQuantityUnit("kg");
+                }}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  listingMode === "b2b"
+                    ? "bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+                    : "text-emerald-400 hover:text-emerald-300"
+                }`}
+              >
+                🏢 Enterprise / B2B Bulk Lot
+              </button>
+            </div>
+          </div>
         </div>
 
         <form
@@ -760,11 +994,18 @@ export default function AddProductPage() {
 
           {/* PRODUCT DETAILS */}
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div ref={productDetailsRef} className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
-            <h2 className="text-xl font-bold text-[#163038]">
-              Product Details
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-[#163038]">
+                Product Details
+              </h2>
+              {listingMode === "b2b" && (
+                <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                  Bulk Industrial Mode
+                </span>
+              )}
+            </div>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
 
@@ -777,16 +1018,8 @@ export default function AddProductPage() {
 
                 <input
                   value={title}
-                  onChange={(e) => {
-                    setTitle(
-                      e.target.value
-                    );
-
-                    setClassification(
-                      null
-                    );
-                  }}
-                  placeholder="e.g. Mild Steel Scrap Sheets"
+                  onChange={(e) => { setTitle(e.target.value); setPriceAnalysis(null); }}
+                  placeholder="e.g. iPhone 15, Study Table, Aluminium Sheets"
                   className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 />
 
@@ -801,11 +1034,7 @@ export default function AddProductPage() {
 
                 <select
                   value={category}
-                  onChange={(e) =>
-                    setCategory(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => { setCategory(e.target.value); setPriceAnalysis(null); }}
                   className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 >
 
@@ -832,21 +1061,13 @@ export default function AddProductPage() {
               <div>
 
                 <label className="text-sm font-semibold text-[#163038]">
-                  Material *
+                  Primary Material / Product Type *
                 </label>
 
                 <input
                   value={material}
-                  onChange={(e) => {
-                    setMaterial(
-                      e.target.value
-                    );
-
-                    setClassification(
-                      null
-                    );
-                  }}
-                  placeholder="e.g. Mild Steel"
+                  onChange={(e) => { setMaterial(e.target.value); setPriceAnalysis(null); }}
+                  placeholder="e.g. Smartphone, Wood, Aluminium, Furniture"
                   className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 />
 
@@ -884,16 +1105,16 @@ export default function AddProductPage() {
                     className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                   >
 
+                    <option value="piece">
+                      piece
+                    </option>
+
                     <option value="kg">
                       kg
                     </option>
 
                     <option value="ton">
                       ton
-                    </option>
-
-                    <option value="piece">
-                      piece
                     </option>
 
                     <option value="litre">
@@ -929,32 +1150,74 @@ export default function AddProductPage() {
                   type="number"
                   min="0"
                   value={price}
-                  onChange={(e) =>
-                    setPrice(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => { setPrice(e.target.value); setPriceAnalysis(null); }}
                   placeholder="5000"
                   className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 />
 
-                <label className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                <div className="mt-3 space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={isNegotiable}
+                      onChange={(e) => setIsNegotiable(e.target.checked)}
+                      className="h-4 w-4 accent-[#187052]"
+                    />
+                    Price is negotiable (Deal Room active)
+                  </label>
 
-                  <input
-                    type="checkbox"
-                    checked={isNegotiable}
-                    onChange={(e) =>
-                      setIsNegotiable(
-                        e.target.checked
-                      )
-                    }
-                    className="h-4 w-4 accent-[#187052]"
-                  />
+                  <label className="flex items-center gap-2 text-sm text-emerald-800 font-semibold bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                    <input
+                      type="checkbox"
+                      checked={allowLotSplit}
+                      onChange={(e) => setAllowLotSplit(e.target.checked)}
+                      className="h-4 w-4 accent-[#187052]"
+                    />
+                    ✂️ Allow Partial Lot Splitting (e.g. buyer can request 30kg out of 100kg)
+                  </label>
 
-                  Price is negotiable
+                  <label className="flex items-center gap-2 text-sm text-sky-800 font-semibold bg-sky-50 p-2 rounded-xl border border-sky-200">
+                    <input
+                      type="checkbox"
+                      checked={isEsgEligible}
+                      onChange={(e) => setIsEsgEligible(e.target.checked)}
+                      className="h-4 w-4 accent-sky-600"
+                    />
+                    🌱 Issue Digital ESG / EPR Carbon Credit Certificate upon sale
+                  </label>
+                </div>
 
+              </div>
+
+              {/* PURCHASE PRICE */}
+              <div>
+                <label className="text-sm font-semibold text-[#163038]">
+                  Original Purchase Price (₹)
                 </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={purchasePrice}
+                  onChange={(e) => { setPurchasePrice(e.target.value); setPriceAnalysis(null); }}
+                  placeholder="Optional e.g. 18000"
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
+                />
+                <p className="mt-1 text-xs text-gray-500">Used as a fallback reference if an exact current online price cannot be found.</p>
+              </div>
 
+              {/* PRODUCT AGE */}
+              <div>
+                <label className="text-sm font-semibold text-[#163038]">
+                  Used For (Months)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={monthsUsed}
+                  onChange={(e) => { setMonthsUsed(e.target.value); setPriceAnalysis(null); }}
+                  placeholder="e.g. 6"
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
+                />
               </div>
 
               {/* CONDITION */}
@@ -966,11 +1229,7 @@ export default function AddProductPage() {
 
                 <select
                   value={condition}
-                  onChange={(e) =>
-                    setCondition(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => { setCondition(e.target.value); setPriceAnalysis(null); }}
                   className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 >
 
@@ -1002,15 +1261,7 @@ export default function AddProductPage() {
 
                 <textarea
                   value={description}
-                  onChange={(e) => {
-                    setDescription(
-                      e.target.value
-                    );
-
-                    setClassification(
-                      null
-                    );
-                  }}
+                  onChange={(e) => { setDescription(e.target.value); setPriceAnalysis(null); }}
                   rows={5}
                   placeholder="Describe the material, usage, availability and other important details..."
                   className="mt-2 w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
@@ -1027,15 +1278,7 @@ export default function AddProductPage() {
 
                 <textarea
                   value={specifications}
-                  onChange={(e) => {
-                    setSpecifications(
-                      e.target.value
-                    );
-
-                    setClassification(
-                      null
-                    );
-                  }}
+                  onChange={(e) => { setSpecifications(e.target.value); setPriceAnalysis(null); }}
                   rows={4}
                   placeholder="Size, grade, dimensions, weight, model number, technical specifications..."
                   className="mt-2 w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
@@ -1044,106 +1287,6 @@ export default function AddProductPage() {
               </div>
 
             </div>
-          </div>
-
-          {/* AI CLASSIFICATION */}
-
-          <div className="rounded-2xl border border-[#b9dace] bg-[#f0faf6] p-6 shadow-sm">
-
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-
-                <p className="text-xs font-bold uppercase tracking-wider text-[#187052]">
-                  AI-ASSISTED CLASSIFICATION
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold text-[#163038]">
-                  Waste Material Classification
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-600">
-                  Analyze the listing details to identify the material and suitable marketplace category.
-                </p>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  classifyMaterial
-                }
-                className="rounded-xl bg-[#187052] px-6 py-3 font-bold text-white hover:bg-[#125c43]"
-              >
-                ✨ Classify Material
-              </button>
-
-            </div>
-
-            {classification && (
-
-              <div className="mt-5 rounded-xl border border-green-200 bg-white p-5">
-
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-
-                  <p className="font-bold text-[#163038]">
-                    Classification Result
-                  </p>
-
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-                    {classification.confidence}% Confidence
-                  </span>
-
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-
-                  <div>
-
-                    <p className="text-xs font-semibold uppercase text-gray-500">
-                      Detected Category
-                    </p>
-
-                    <p className="mt-1 font-bold text-[#163038]">
-                      {classification.category}
-                    </p>
-
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs font-semibold uppercase text-gray-500">
-                      Detected Material
-                    </p>
-
-                    <p className="mt-1 font-bold text-[#163038]">
-                      {classification.material}
-                    </p>
-
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs font-semibold uppercase text-gray-500">
-                      Classification Status
-                    </p>
-
-                    <p className="mt-1 font-bold text-green-700">
-                      ✓ Classified
-                    </p>
-
-                  </div>
-
-                </div>
-
-                <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
-                  Category has been automatically updated using the classification result. Final approval is still performed through EcoMatch verification.
-                </p>
-
-              </div>
-
-            )}
-
           </div>
 
           {/* SELLER LOCATION */}
@@ -1170,26 +1313,79 @@ export default function AddProductPage() {
 
             </div>
 
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setLocationMode("live")} className={`rounded-xl px-4 py-2 text-sm font-bold ${locationMode === "live" ? "bg-[#187052] text-white" : "border border-gray-300 bg-white text-gray-700"}`}>
+                📍 Live Location Recommended
+              </button>
+              <button type="button" onClick={() => { setLocationMode("manual"); setLatitude(null); setLongitude(null); setLocationSelected(false); setLocationSuggestions([]); }} className={`rounded-xl px-4 py-2 text-sm font-bold ${locationMode === "manual" ? "bg-[#163038] text-white" : "border border-gray-300 bg-white text-gray-700"}`}>
+                ✍️ Enter Manually
+              </button>
+            </div>
+
             <div className="mt-5">
 
               <label className="text-sm font-semibold text-[#163038]">
                 Area / City
               </label>
 
-              <input
-                value={locationName}
-                onChange={(e) =>
-                  setLocationName(
-                    e.target.value
-                  )
-                }
-                placeholder="e.g. Noida, Uttar Pradesh"
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none placeholder:text-gray-500 focus:border-[#187052]"
-              />
+              {locationMode === "manual" ? (
+                <>
+                  <div className="relative mt-2">
+                    <input
+                      value={locationName}
+                      onChange={(e) => {
+                        setLocationName(e.target.value);
+                        setLatitude(null);
+                        setLongitude(null);
+                        setLocationSelected(false);
+                      }}
+                      placeholder="e.g. Sector 46 Noida"
+                      autoComplete="off"
+                      className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#163038] outline-none placeholder:text-gray-500 focus:border-[#187052]"
+                    />
+
+                    {locationSearchLoading && (
+                      <span className="absolute right-4 top-3.5 text-xs font-semibold text-gray-400">Searching...</span>
+                    )}
+
+                    {locationSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                        {locationSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onClick={() => selectLocationSuggestion(suggestion)}
+                            className="block w-full border-b border-gray-100 px-4 py-3 text-left text-sm text-[#163038] transition last:border-b-0 hover:bg-[#eef9f4]"
+                          >
+                            📍 {suggestion.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    Type a locality such as Sector 46 Noida and choose a suggestion. No map is shown; coordinates are saved silently for distance matching.
+                  </p>
+
+                  {locationSearchError && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      {locationSearchError}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <input
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  placeholder="Optional label e.g. Noida, Uttar Pradesh"
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none placeholder:text-gray-500 focus:border-[#187052]"
+                />
+              )}
 
             </div>
 
-            <button
+            {locationMode === "live" && <button
               type="button"
               onClick={
                 handleUseLocation
@@ -1207,7 +1403,21 @@ export default function AddProductPage() {
                   ? "✓ Location Saved"
                   : "📍 Use My Current Location"}
 
-            </button>
+            </button>}
+
+            {locationMode === "manual" && locationName.trim() && (
+              <div className={`mt-4 rounded-xl border p-4 ${latitude !== null && longitude !== null ? "border-green-200 bg-green-50" : "border-blue-200 bg-blue-50"}`}>
+                <p className={`text-sm font-semibold ${latitude !== null && longitude !== null ? "text-green-700" : "text-blue-700"}`}>
+                  {latitude !== null && longitude !== null ? "✓ Location selected" : "Select one of the location suggestions"}
+                </p>
+                <p className={`mt-1 text-xs ${latitude !== null && longitude !== null ? "text-green-600" : "text-blue-600"}`}>
+                  {locationName}
+                </p>
+                {latitude === null || longitude === null ? (
+                  <p className="mt-1 text-xs text-blue-600">Choose a suggestion to enable accurate distance matching.</p>
+                ) : null}
+              </div>
+            )}
 
             {latitude !== null &&
               longitude !== null && (
@@ -1241,31 +1451,33 @@ export default function AddProductPage() {
               Upload authentic photos of the actual product. Maximum 5 images, 5MB each.
             </p>
 
-            <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#b9dace] bg-[#eef9f4] px-6 py-10 text-center transition hover:bg-[#e4f5ed]">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#187052] bg-[#eef9f4] px-6 py-8 text-center transition hover:bg-[#e4f5ed]">
+                <div className="text-4xl">📷</div>
+                <p className="mt-2 font-bold text-[#163038]">Take Photo</p>
+                <p className="mt-1 text-xs text-gray-500">Open the device camera and capture the actual product</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </label>
 
-              <div className="text-5xl">
-                📷
-              </div>
-
-              <p className="mt-3 font-bold text-[#163038]">
-                Upload Product Images
-              </p>
-
-              <p className="mt-1 text-sm text-gray-500">
-                PNG, JPG, JPEG — up to 5MB each
-              </p>
-
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={
-                  handleImageChange
-                }
-                className="hidden"
-              />
-
-            </label>
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#b9dace] bg-white px-6 py-8 text-center transition hover:bg-[#f7faf9]">
+                <div className="text-4xl">🖼️</div>
+                <p className="mt-2 font-bold text-[#163038]">Upload from Gallery</p>
+                <p className="mt-1 text-xs text-gray-500">PNG, JPG, JPEG — maximum 5 images, 5MB each</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
             {previews.length > 0 && (
 
@@ -1288,6 +1500,12 @@ export default function AddProductPage() {
                         className="h-32 w-full object-cover"
                       />
 
+                      {index === 0 && (
+                        <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
+                          AI primary image
+                        </span>
+                      )}
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1309,6 +1527,189 @@ export default function AddProductPage() {
 
             )}
 
+            <div className="mt-6 rounded-2xl border border-[#b9dace] bg-[#f0faf6] p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#187052]">
+                    EcoMatch Vision AI
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold text-[#163038]">
+                    Analyze the actual product photo
+                  </h3>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                    AI inspects the first uploaded image to identify the product, suggest its category, estimate visible condition and prepare listing details.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={analyzeProductImage}
+                  disabled={visionLoading || selectedImages.length === 0}
+                  className="shrink-0 rounded-xl bg-[#163038] px-6 py-3 font-bold text-white transition hover:bg-[#0f242a] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {visionLoading ? "Analyzing Image..." : "✦ Analyze with Vision AI"}
+                </button>
+              </div>
+
+              {visionAnalysis && (
+                <div className="mt-5 rounded-2xl border border-green-200 bg-white p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-[#187052]">
+                        AI Product Understanding
+                      </p>
+                      <h4 className="mt-1 text-xl font-bold text-[#163038]">
+                        {visionAnalysis.productName}
+                      </h4>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {visionAnalysis.brand !== "Unknown" ? `Brand: ${visionAnalysis.brand}` : "Brand not confidently visible"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                        {visionAnalysis.classificationConfidence}% Product Confidence
+                      </span>
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                        {visionAnalysis.conditionConfidence}% Condition Confidence
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl bg-[#f7faf9] p-4">
+                      <p className="text-[10px] font-bold uppercase text-gray-500">Category</p>
+                      <p className="mt-1 font-bold text-[#163038]">{visionAnalysis.category}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#f7faf9] p-4">
+                      <p className="text-[10px] font-bold uppercase text-gray-500">Product Type</p>
+                      <p className="mt-1 font-bold text-[#163038]">{visionAnalysis.productType}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#f7faf9] p-4">
+                      <p className="text-[10px] font-bold uppercase text-gray-500">Visual Condition</p>
+                      <p className="mt-1 font-bold text-[#163038]">{visionAnalysis.condition}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#f7faf9] p-4">
+                      <p className="text-[10px] font-bold uppercase text-gray-500">Reuse Potential</p>
+                      <p className="mt-1 font-bold text-[#187052]">{visionAnalysis.reusePotential}</p>
+                    </div>
+                  </div>
+
+                  {visionAnalysis.visibleIssues.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-xs font-bold uppercase text-amber-700">Visible observations</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {visionAnalysis.visibleIssues.map((issue) => (
+                          <span key={issue} className="rounded-full bg-white px-3 py-1 text-xs text-amber-800">
+                            {issue}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 rounded-xl bg-[#f7faf9] p-4">
+                    <p className="text-xs font-bold uppercase text-gray-500">AI note</p>
+                    <p className="mt-1 text-sm leading-6 text-gray-600">{visionAnalysis.notes}</p>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-5 text-gray-500">
+                      AI condition is a visual estimate only. Seller must review all generated details and admin verification remains mandatory.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={applyVisionSuggestions}
+                      className="shrink-0 rounded-xl border border-[#187052] bg-white px-5 py-2.5 text-sm font-bold text-[#187052] hover:bg-[#eef9f4]"
+                    >
+                      {aiApplied ? "✓ AI Data Applied" : "Apply AI Suggestions"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* AI PRICE INTELLIGENCE */}
+          <div className="rounded-2xl border border-[#d7c8ff] bg-[#faf8ff] p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6d4bc3]">EcoMatch Price Intelligence</p>
+                <h2 className="mt-1 text-xl font-bold text-[#163038]">Is your asking price fair?</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                  AI can research a current Indian new-retail reference online and combine it with product age and visual condition to estimate a fair resale range.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={analyzePrice}
+                disabled={priceLoading || !price}
+                className="shrink-0 rounded-xl bg-[#6d4bc3] px-6 py-3 font-bold text-white hover:bg-[#593ba8] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {priceLoading ? "Checking Market..." : "💰 Analyze Fair Price"}
+              </button>
+            </div>
+
+            {priceAnalysis && (
+              <div className="mt-5 rounded-2xl border border-purple-200 bg-white p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-gray-500">AI Verdict</p>
+                    <p className={`mt-1 text-2xl font-bold ${
+                      priceAnalysis.verdict === "Great Deal" || priceAnalysis.verdict === "Good Deal"
+                        ? "text-green-700"
+                        : priceAnalysis.verdict === "Fair Price"
+                          ? "text-[#187052]"
+                          : "text-amber-700"
+                    }`}>
+                      {priceAnalysis.verdict}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-[#6d4bc3]">
+                    {priceAnalysis.confidence}% Price Confidence
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-[#f7faf9] p-4">
+                    <p className="text-[10px] font-bold uppercase text-gray-500">Reference New Price</p>
+                    <p className="mt-1 text-lg font-bold text-[#163038]">₹{priceAnalysis.referencePrice.toLocaleString("en-IN")}</p>
+                    <p className="mt-1 text-[10px] text-gray-500">{priceAnalysis.marketPriceFound ? "Researched online" : "Fallback reference"}</p>
+                  </div>
+                  <div className="rounded-xl bg-green-50 p-4">
+                    <p className="text-[10px] font-bold uppercase text-green-700">Fair Resale Range</p>
+                    <p className="mt-1 text-lg font-bold text-green-800">₹{priceAnalysis.fairMin.toLocaleString("en-IN")} – ₹{priceAnalysis.fairMax.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div className="rounded-xl bg-[#f7faf9] p-4">
+                    <p className="text-[10px] font-bold uppercase text-gray-500">Seller Asking</p>
+                    <p className="mt-1 text-lg font-bold text-[#163038]">₹{priceAnalysis.sellerPrice.toLocaleString("en-IN")}</p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-gray-600">{priceAnalysis.reason}</p>
+                {priceAnalysis.researchSummary && (
+                  <p className="mt-2 text-xs leading-5 text-gray-500">Market research: {priceAnalysis.researchSummary}</p>
+                )}
+
+                {priceAnalysis.sources.length > 0 && (
+                  <div className="mt-4 border-t border-gray-100 pt-3">
+                    <p className="text-xs font-bold uppercase text-gray-500">Online reference sources</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {priceAnalysis.sources.map((source) => (
+                        <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-[#6d4bc3] hover:underline">
+                          {source.title}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="mt-4 text-[11px] leading-5 text-gray-500">
+                  This is an AI-assisted resale estimate, not a guaranteed market value. Exact model, hidden defects, local demand, warranty and accessories can change the final price.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* VERIFICATION */}
@@ -1320,7 +1721,7 @@ export default function AddProductPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-gray-600">
-              Your listing, classification and uploaded images will be submitted for verification. Only approved products will appear on the marketplace.
+              Your listing, AI analysis and uploaded images will be submitted for verification. AI assists the seller, while final marketplace approval remains a human verification step.
             </p>
 
           </div>
@@ -1379,9 +1780,10 @@ export default function AddProductPage() {
           </div>
 
         </form>
-
       </section>
 
+      <Footer />
+      <MobileBottomNav />
     </main>
   );
 }

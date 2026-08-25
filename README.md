@@ -49,3 +49,8 @@ Add the same Supabase environment variables used by the existing project before 
 **High on Codes**
 
 Janit Kumar Hind · Krish Tiwari · Jeetu Yadav · Yash Gautam
+
+---
+
+## Phase 7A Trust Marketplace
+See `PHASE_SEVEN_A_TRUST_MARKETPLACE.md` and run `supabase/phase7_trust_marketplace.sql` before testing the new profile, offer, chat-safety, admin-risk and listing-gate features.

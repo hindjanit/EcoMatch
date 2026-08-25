@@ -1,18 +1,22 @@
 "use client";
 
-import {
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import {
-  useSearchParams,
-  useRouter,
-} from "next/navigation";
-
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import {
+  Send,
+  MessageSquare,
+  ShieldCheck,
+  ShieldAlert,
+  ArrowLeft,
+  Handshake,
+  Boxes,
+  Lock,
+} from "lucide-react";
 
 type Conversation = {
   id: number;
@@ -41,75 +45,46 @@ function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const conversationId =
-    searchParams.get("conversation");
+  const conversationId = searchParams.get("conversation");
+  const productId = searchParams.get("product") || searchParams.get("productId");
+  const sellerId = searchParams.get("seller") || searchParams.get("sellerId");
 
-  const productId =
-    searchParams.get("product");
+  const [userId, setUserId] = useState("");
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
 
-  const sellerId =
-    searchParams.get("seller");
-
-  const [userId, setUserId] =
-    useState("");
-
-  const [
-    conversation,
-    setConversation,
-  ] = useState<Conversation | null>(
-    null
-  );
-
-  const [product, setProduct] =
-    useState<Product | null>(null);
-
-  const [
-    messages,
-    setMessages,
-  ] = useState<Message[]>([]);
-
-  const [
-    newMessage,
-    setNewMessage,
-  ] = useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [sending, setSending] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const messagesEndRef =
-    useRef<HTMLDivElement | null>(
-      null
-    );
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    initializeChat();
-  }, [
-    conversationId,
-    productId,
-    sellerId,
-  ]);
+    initChat();
+  }, [conversationId, productId, sellerId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function initializeChat() {
+  // Real-time message subscription / polling
+  useEffect(() => {
+    if (!conversation) return;
+    const interval = setInterval(() => {
+      loadMessages(conversation.id, true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [conversation]);
+
+  async function initChat() {
     setLoading(true);
     setError("");
 
     const {
       data: { user },
       error: userError,
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (userError || !user) {
       router.push("/login");
@@ -118,684 +93,225 @@ function ChatContent() {
 
     setUserId(user.id);
 
-    // =====================================
-    // OPEN USING CONVERSATION ID
-    // =====================================
+    let activeConv: Conversation | null = null;
 
     if (conversationId) {
-      const id =
-        Number(conversationId);
+      const { data, error: convErr } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("id", Number(conversationId))
+        .single();
 
-      if (Number.isNaN(id)) {
-        setError(
-          "Invalid conversation ID."
-        );
-
+      if (convErr) {
+        setError(convErr.message);
         setLoading(false);
         return;
       }
+      activeConv = data as Conversation;
+    } else if (productId && sellerId) {
+      const pId = Number(productId);
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("product_id", pId)
+        .eq("buyer_id", user.id)
+        .eq("seller_id", sellerId)
+        .maybeSingle();
 
-      const {
-        data,
-        error: conversationError,
-      } =
-        await supabase
+      if (existing) {
+        activeConv = existing as Conversation;
+      } else {
+        const { data: newConv, error: createErr } = await supabase
           .from("conversations")
+          .insert({
+            product_id: pId,
+            buyer_id: user.id,
+            seller_id: sellerId,
+          })
           .select("*")
-          .eq("id", id)
           .single();
 
-      if (
-        conversationError ||
-        !data
-      ) {
-        setError(
-          conversationError?.message ||
-            "Conversation not found."
-        );
-
-        setLoading(false);
-        return;
-      }
-
-      if (
-        data.buyer_id !==
-          user.id &&
-        data.seller_id !== user.id
-      ) {
-        setError(
-          "You are not a participant in this conversation."
-        );
-
-        setLoading(false);
-        return;
-      }
-
-      setConversation(data);
-
-      await Promise.all([
-        loadMessages(data.id),
-        loadProduct(
-          data.product_id
-        ),
-      ]);
-
-      setLoading(false);
-      return;
-    }
-
-    // =====================================
-    // OPEN FROM PRODUCT PAGE
-    // =====================================
-
-    if (productId && sellerId) {
-      if (user.id === sellerId) {
-        setError(
-          "You cannot chat with yourself."
-        );
-
-        setLoading(false);
-        return;
-      }
-
-      const numericProductId =
-        Number(productId);
-
-      if (
-        Number.isNaN(
-          numericProductId
-        )
-      ) {
-        setError(
-          "Invalid product ID."
-        );
-
-        setLoading(false);
-        return;
-      }
-
-      const {
-        data:
-          existingConversation,
-        error: findError,
-      } =
-        await supabase
-          .from("conversations")
-          .select("*")
-          .eq(
-            "product_id",
-            numericProductId
-          )
-          .eq(
-            "buyer_id",
-            user.id
-          )
-          .eq(
-            "seller_id",
-            sellerId
-          )
-          .maybeSingle();
-
-      if (findError) {
-        setError(
-          findError.message
-        );
-
-        setLoading(false);
-        return;
-      }
-
-      let currentConversation =
-        existingConversation;
-
-      if (
-        !currentConversation
-      ) {
-        const {
-          data:
-            newConversation,
-          error:
-            createError,
-        } =
-          await supabase
-            .from(
-              "conversations"
-            )
-            .insert({
-              product_id:
-                numericProductId,
-
-              buyer_id:
-                user.id,
-
-              seller_id:
-                sellerId,
-            })
-            .select("*")
-            .single();
-
-        if (
-          createError ||
-          !newConversation
-        ) {
-          setError(
-            createError?.message ||
-              "Could not create conversation."
-          );
-
+        if (createErr) {
+          setError(createErr.message);
           setLoading(false);
           return;
         }
-
-        currentConversation =
-          newConversation;
+        activeConv = newConv as Conversation;
       }
+    }
 
-      setConversation(
-        currentConversation
-      );
-
-      await Promise.all([
-        loadMessages(
-          currentConversation.id
-        ),
-        loadProduct(
-          currentConversation.product_id
-        ),
-      ]);
-
-      router.replace(
-        `/chat?conversation=${currentConversation.id}`
-      );
-
+    if (!activeConv) {
+      setError("No valid conversation parameters provided.");
       setLoading(false);
       return;
     }
 
-    setError(
-      "Invalid chat details."
-    );
+    setConversation(activeConv);
 
+    // Fetch product details
+    const { data: prodData } = await supabase
+      .from("products")
+      .select("id, title, category, price")
+      .eq("id", activeConv.product_id)
+      .single();
+
+    if (prodData) setProduct(prodData as Product);
+
+    await loadMessages(activeConv.id, false);
     setLoading(false);
   }
 
-  async function loadProduct(
-    currentProductId: number
-  ) {
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from("products")
-        .select(
-          "id, title, category, price"
-        )
-        .eq(
-          "id",
-          currentProductId
-        )
-        .maybeSingle();
+  async function loadMessages(cId: number, quiet = false) {
+    const { data, error: msgErr } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", cId)
+      .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error(
-        "Product error:",
-        error
-      );
-      return;
+    if (!msgErr && data) {
+      setMessages(data as Message[]);
     }
-
-    setProduct(data);
   }
 
-  async function loadMessages(
-    currentConversationId: number
-  ) {
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from("messages")
-        .select("*")
-        .eq(
-          "conversation_id",
-          currentConversationId
-        )
-        .order(
-          "created_at",
-          {
-            ascending: true,
-          }
-        );
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    setMessages(
-      (data || []) as Message[]
-    );
-  }
-
-  async function sendMessage() {
-    const text =
-      newMessage.trim();
-
-    if (
-      !text ||
-      !conversation ||
-      !userId ||
-      sending
-    ) {
-      return;
-    }
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newMessage.trim() || !conversation || sending) return;
 
     setSending(true);
-    setError("");
-
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from("messages")
-        .insert({
-          conversation_id:
-            conversation.id,
-
-          sender_id:
-            userId,
-
-          message: text,
-        })
-        .select("*")
-        .single();
-
-    if (error) {
-      setError(
-        error.message
-      );
-
-      setSending(false);
-      return;
-    }
-
-    if (data) {
-      setMessages(
-        (current) => {
-          if (
-            current.some(
-              (message) =>
-                message.id ===
-                data.id
-            )
-          ) {
-            return current;
-          }
-
-          return [
-            ...current,
-            data,
-          ];
-        }
-      );
-    }
-
+    const content = newMessage.trim();
     setNewMessage("");
+
+    const { error: sendErr } = await supabase.from("messages").insert({
+      conversation_id: conversation.id,
+      sender_id: userId,
+      message: content,
+    });
+
+    if (sendErr) {
+      setError(sendErr.message);
+    } else {
+      await loadMessages(conversation.id, true);
+    }
     setSending(false);
   }
 
-  // =====================================
-  // REALTIME
-  // =====================================
-
-  useEffect(() => {
-    if (!conversation) {
-      return;
-    }
-
-    const channel =
-      supabase
-        .channel(
-          `chat-${conversation.id}`
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema:
-              "public",
-            table:
-              "messages",
-            filter:
-              `conversation_id=eq.${conversation.id}`,
-          },
-          (payload) => {
-            const incomingMessage =
-              payload.new as Message;
-
-            setMessages(
-              (current) => {
-                if (
-                  current.some(
-                    (message) =>
-                      message.id ===
-                      incomingMessage.id
-                  )
-                ) {
-                  return current;
-                }
-
-                return [
-                  ...current,
-                  incomingMessage,
-                ];
-              }
-            );
-          }
-        )
-        .subscribe();
-
-    return () => {
-      supabase.removeChannel(
-        channel
-      );
-    };
-  }, [conversation]);
-
-  if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7faf9]">
-        <div className="text-center">
-          <div className="text-5xl">
-            💬
-          </div>
-
-          <p className="mt-4 font-semibold text-[#187052]">
-            Opening chat...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7faf9] px-6">
-        <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-          <div className="text-4xl">
-            ⚠️
-          </div>
-
-          <h1 className="mt-4 text-xl font-bold text-[#163038]">
-            Chat unavailable
-          </h1>
-
-          <p className="mt-2 text-sm text-red-600">
-            {error}
-          </p>
-
-          <button
-            onClick={() =>
-              router.back()
-            }
-            className="mt-6 rounded-xl bg-[#187052] px-5 py-3 font-semibold text-white"
-          >
-            Go Back
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  const isBuyer =
-    conversation?.buyer_id ===
-    userId;
-
   return (
-    <main className="min-h-screen bg-[#f7faf9]">
-      {/* HEADER */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <button
-            onClick={() =>
-              router.push(
-                "/marketplace"
-              )
-            }
-            className="text-2xl font-bold text-[#187052]"
+    <div className="relative mx-auto max-w-4xl px-4 pt-28 sm:px-6">
+      {/* Top Chat Bar */}
+      <div className="flex items-center justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/90 p-4 shadow-xl backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/chat/inbox"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 hover:text-white"
           >
-            EcoMatch
-          </button>
-
-          <button
-            onClick={() =>
-              router.push(
-                "/chat/inbox"
-              )
-            }
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            ← Messages
-          </button>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-4xl px-5 py-8">
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          {/* CHAT HEADER */}
-          <div className="border-b border-gray-200 bg-[#eef9f4] p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">
-                    {isBuyer
-                      ? "🏪"
-                      : "🛒"}
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#187052]">
-                      {isBuyer
-                        ? "Chat with Seller"
-                        : "Buyer Inquiry"}
-                    </p>
-
-                    <h1 className="mt-1 text-xl font-bold text-[#163038]">
-                      {product?.title ||
-                        "Product Conversation"}
-                    </h1>
-                  </div>
-                </div>
-
-                {product && (
-                  <p className="mt-2 text-sm text-gray-600">
-                    {product.category}
-                    {" • "}₹
-                    {product.price.toLocaleString(
-                      "en-IN"
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {product && (
-                <button
-                  onClick={() =>
-                    router.push(
-                      `/product/${product.id}`
-                    )
-                  }
-                  className="hidden rounded-lg border border-[#b9ddce] bg-white px-4 py-2 text-xs font-semibold text-[#187052] hover:bg-[#f7faf9] sm:block"
-                >
-                  View Product
-                </button>
-              )}
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
+                {product?.category || "Material"}
+              </span>
+              <h2 className="font-bold text-white text-sm sm:text-base">
+                {product?.title || "Material Discussion"}
+              </h2>
             </div>
-          </div>
-
-          {/* MESSAGES */}
-          <div className="min-h-[450px] max-h-[570px] overflow-y-auto bg-[#f8faf9] p-5">
-            {messages.length ===
-              0 && (
-              <div className="flex min-h-[400px] items-center justify-center text-center">
-                <div>
-                  <div className="text-6xl">
-                    💬
-                  </div>
-
-                  <p className="mt-4 font-bold text-[#163038]">
-                    Start the conversation
-                  </p>
-
-                  <p className="mt-2 text-sm text-gray-500">
-                    Discuss price,
-                    quantity,
-                    availability and
-                    specifications.
-                  </p>
-                </div>
-              </div>
+            {product?.price && (
+              <p className="text-xs text-emerald-400 font-semibold">
+                Listed Price: ₹{product.price.toLocaleString("en-IN")}
+              </p>
             )}
-
-            <div className="space-y-3">
-              {messages.map(
-                (message) => {
-                  const isMine =
-                    message.sender_id ===
-                    userId;
-
-                  return (
-                    <div
-                      key={
-                        message.id
-                      }
-                      className={`flex ${
-                        isMine
-                          ? "justify-end"
-                          : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
-                          isMine
-                            ? "rounded-br-md bg-[#187052] text-white"
-                            : "rounded-bl-md border border-gray-200 bg-white text-[#163038]"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6">
-                          {
-                            message.message
-                          }
-                        </p>
-
-                        <p
-                          className={`mt-1 text-right text-[10px] ${
-                            isMine
-                              ? "text-white/70"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {new Date(
-                            message.created_at
-                          ).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour:
-                                "2-digit",
-                              minute:
-                                "2-digit",
-                            }
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-              )}
-            </div>
-
-            <div
-              ref={
-                messagesEndRef
-              }
-            />
-          </div>
-
-          {/* INPUT */}
-          <div className="border-t border-gray-200 bg-white p-4">
-            <div className="flex items-end gap-3">
-              <textarea
-                value={
-                  newMessage
-                }
-                onChange={(e) =>
-                  setNewMessage(
-                    e.target.value
-                  )
-                }
-                onKeyDown={(e) => {
-                  if (
-                    e.key ===
-                      "Enter" &&
-                    !e.shiftKey
-                  ) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Type your message..."
-                rows={1}
-                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm text-[#163038] outline-none placeholder:text-gray-500 focus:border-[#187052]"
-              />
-
-              <button
-                onClick={
-                  sendMessage
-                }
-                disabled={
-                  sending ||
-                  !newMessage.trim()
-                }
-                className="h-12 rounded-xl bg-[#187052] px-6 font-semibold text-white hover:bg-[#125c43] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {sending
-                  ? "Sending..."
-                  : "Send"}
-              </button>
-            </div>
-
-            <p className="mt-2 text-xs text-gray-400">
-              Press Enter to send • Shift +
-              Enter for a new line
-            </p>
           </div>
         </div>
-      </section>
-    </main>
+
+        {product?.id && (
+          <Link
+            href={`/product/${product.id}`}
+            className="hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 sm:block"
+          >
+            View Product
+          </Link>
+        )}
+      </div>
+
+      {/* Fraud & Safe Exchange Alert */}
+      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-[#03140e]/60 px-4 py-2 text-[11px] text-white/50">
+        <Lock className="h-3.5 w-3.5 text-emerald-400" />
+        <span>For your security, always complete handovers through the verified OTP Deal Room.</span>
+      </div>
+
+      {/* Messages Scroll Box */}
+      <div className="mt-4 flex h-[480px] flex-col justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-2xl backdrop-blur-2xl">
+        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+          {messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-center text-xs text-white/40">
+              Start the discussion! Inquire about volume, pickup logistics or price negotiation.
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const isMe = msg.sender_id === userId;
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[75%] rounded-2xl p-3.5 text-xs ${
+                      isMe
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium shadow-[0_0_15px_rgba(16,185,129,0.25)]"
+                        : "border border-white/10 bg-[#03110b] text-white/90"
+                    }`}
+                  >
+                    <p className="leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                    <span className="mt-1 block text-[10px] opacity-60 text-right">
+                      {new Date(msg.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Bar */}
+        <form onSubmit={handleSendMessage} className="mt-4 flex items-center gap-2 pt-2 border-t border-white/10">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1 rounded-2xl border border-emerald-500/20 bg-[#03110b] px-4 py-3 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={sending || !newMessage.trim()}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 text-[#03140e] transition hover:bg-emerald-300 disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
 export default function ChatPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[#f7faf9]">
-          <div className="text-center">
-            <div className="text-5xl">
-              💬
-            </div>
+    <main className="eco-page min-h-screen text-white pb-24">
+      <Navbar />
 
-            <p className="mt-4 font-semibold text-[#187052]">
-              Opening chat...
-            </p>
-          </div>
-        </main>
-      }
-    >
-      <ChatContent />
-    </Suspense>
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
+
+      <Suspense fallback={<div className="pt-36 text-center text-xs">Loading chat...</div>}>
+        <ChatContent />
+      </Suspense>
+
+      <Footer />
+      <MobileBottomNav />
+    </main>
   );
 }

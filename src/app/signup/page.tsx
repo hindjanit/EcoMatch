@@ -3,6 +3,18 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ShoppingCart,
+  Boxes,
+  User,
+  Phone,
+  Mail,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 
 export default function SignupPage() {
   const supabase = createClient();
@@ -25,6 +37,13 @@ export default function SignupPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: name.trim(),
+          phone: phone.trim(),
+          role,
+        },
+      },
     });
 
     if (error) {
@@ -33,193 +52,175 @@ export default function SignupPage() {
       return;
     }
 
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          full_name: name,
-          phone,
-          role,
-          verification_status: "pending",
-        });
-
-      if (profileError) {
-        setMessage(profileError.message);
-        setLoading(false);
-        return;
-      }
+    if (!data.session) {
+      setMessage("✓ Account created! Please check your email to confirm your registration.");
+      setLoading(false);
+      return;
     }
 
-    setMessage(
-      "Account created successfully! Please check your email if verification is required."
-    );
-
-    setTimeout(() => {
-      router.push("/marketplace");
-    }, 1500);
-
+    setMessage("✓ Account created successfully! Redirecting...");
+    setTimeout(() => router.push("/profile"), 800);
     setLoading(false);
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7faf9] px-5 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+    <main className="eco-page min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden">
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
 
-        {/* Logo */}
+      <div className="relative w-full max-w-md rounded-3xl border border-emerald-500/25 bg-[#061e16]/85 p-8 shadow-2xl backdrop-blur-2xl">
         <div className="text-center">
-          <a
-            href="/"
-            className="text-3xl font-bold text-[#187052]"
-          >
-            EcoMatch
-          </a>
+          <Link href="/" className="inline-flex items-center gap-2.5 group">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/40 bg-emerald-500/10 text-xl font-bold text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+              ♻
+            </div>
+            <span className="text-2xl font-black text-white">
+              Eco<span className="text-emerald-400">Match</span>
+            </span>
+          </Link>
 
-          <p className="mt-2 text-sm text-gray-600">
-            Create your EcoMatch account
+          <h2 className="mt-4 text-xl font-black text-white">Create Your Account</h2>
+          <p className="mt-1 text-xs text-white/60">
+            Join the circular material exchange network
           </p>
         </div>
 
-        {/* Role Selection */}
-        <div className="mt-8">
-          <p className="mb-3 text-sm font-semibold text-[#163038]">
-            I want to
+        {/* Role Toggle Selector */}
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+            I Want To
           </p>
-
           <div className="grid grid-cols-2 gap-3">
-
             <button
               type="button"
               onClick={() => setRole("buyer")}
-              className={`rounded-xl border p-4 text-center transition ${
+              className={`flex flex-col items-center justify-center rounded-2xl border p-3.5 transition-all ${
                 role === "buyer"
-                  ? "border-[#187052] bg-[#e1f4ed] text-[#187052]"
-                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  ? "border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)] scale-[1.02]"
+                  : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
               }`}
             >
-              <div className="text-2xl">🛒</div>
-
-              <p className="mt-1 font-semibold">
-                Buy Materials
-              </p>
+              <ShoppingCart className="h-5 w-5" />
+              <span className="mt-1.5 text-xs font-bold">Buy Materials</span>
             </button>
 
             <button
               type="button"
               onClick={() => setRole("seller")}
-              className={`rounded-xl border p-4 text-center transition ${
+              className={`flex flex-col items-center justify-center rounded-2xl border p-3.5 transition-all ${
                 role === "seller"
-                  ? "border-[#187052] bg-[#e1f4ed] text-[#187052]"
-                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  ? "border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)] scale-[1.02]"
+                  : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
               }`}
             >
-              <div className="text-2xl">📦</div>
-
-              <p className="mt-1 font-semibold">
-                Sell Materials
-              </p>
+              <Boxes className="h-5 w-5" />
+              <span className="mt-1.5 text-xs font-bold">Sell Surplus</span>
             </button>
-
           </div>
         </div>
 
         {/* Signup Form */}
-        <form onSubmit={handleSignup} className="mt-6 space-y-4">
-
-          {/* Full Name */}
+        <form onSubmit={handleSignup} className="mt-6 space-y-3.5">
           <div>
-            <label className="text-sm font-semibold text-[#163038]">
-              Full Name
+            <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+              Full Name / Company
             </label>
-
-            <input
-              required
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-[#163038] placeholder:text-gray-500 outline-none transition focus:border-[#187052] focus:ring-1 focus:ring-[#187052]"
-            />
+            <div className="relative mt-1">
+              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <input
+                required
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Janit Kumar Hind"
+                className="w-full rounded-xl border border-emerald-500/20 bg-[#03110b] pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* Phone */}
           <div>
-            <label className="text-sm font-semibold text-[#163038]">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
               Phone Number
             </label>
-
-            <input
-              required
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Enter phone number"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-[#163038] placeholder:text-gray-500 outline-none transition focus:border-[#187052] focus:ring-1 focus:ring-[#187052]"
-            />
+            <div className="relative mt-1">
+              <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <input
+                required
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="w-full rounded-xl border border-emerald-500/20 bg-[#03110b] pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* Email */}
           <div>
-            <label className="text-sm font-semibold text-[#163038]">
-              Email
+            <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+              Email Address
             </label>
-
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-[#163038] placeholder:text-gray-500 outline-none transition focus:border-[#187052] focus:ring-1 focus:ring-[#187052]"
-            />
+            <div className="relative mt-1">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                className="w-full rounded-xl border border-emerald-500/20 bg-[#03110b] pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* Password */}
           <div>
-            <label className="text-sm font-semibold text-[#163038]">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
               Password
             </label>
-
-            <input
-              required
-              type="password"
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-[#163038] placeholder:text-gray-500 outline-none transition focus:border-[#187052] focus:ring-1 focus:ring-[#187052]"
-            />
+            <div className="relative mt-1">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 6 characters"
+                className="w-full rounded-xl border border-emerald-500/20 bg-[#03110b] pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* Create Account */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[#187052] py-3 font-semibold text-white transition hover:bg-[#125c43] disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 py-3.5 text-xs font-black text-[#03140e] shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:from-emerald-300 hover:to-emerald-400 hover:scale-[1.02] disabled:opacity-50"
           >
             {loading ? "Creating Account..." : "Create Account"}
+            <ArrowRight className="h-4 w-4" />
           </button>
-
         </form>
 
-        {/* Message */}
         {message && (
-          <div className="mt-4 rounded-lg border border-[#b9e3d2] bg-[#e1f4ed] p-3 text-center text-sm font-medium text-[#187052]">
+          <div
+            className={`mt-4 rounded-xl border p-3 text-center text-xs font-semibold ${
+              message.startsWith("✓")
+                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300"
+                : "border-red-500/30 bg-red-500/10 text-red-300"
+            }`}
+          >
             {message}
           </div>
         )}
 
-        {/* Login */}
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-6 text-center text-xs text-white/60">
           Already have an account?{" "}
-          <a
+          <Link
             href="/login"
-            className="font-semibold text-[#187052] hover:underline"
+            className="font-bold text-emerald-400 hover:text-emerald-300 underline"
           >
-            Login
-          </a>
+            Sign In
+          </Link>
         </p>
-
       </div>
     </main>
   );

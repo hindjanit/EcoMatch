@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 type Product = {
   id: string;
@@ -19,6 +22,9 @@ type Product = {
   condition: string;
   status: string;
   created_at: string;
+  ai_review_bucket?: "normal" | "review" | "likely_scam" | string;
+  ai_risk_score?: number | null;
+  ai_risk_reasons?: string[] | null;
 };
 
 type ProductImage = {
@@ -50,6 +56,8 @@ export default function AdminPage() {
 
   const [selectedImage, setSelectedImage] =
     useState<string | null>(null);
+
+  const [riskFilter, setRiskFilter] = useState<"all" | "normal" | "review" | "likely_scam">("all");
 
   useEffect(() => {
   checkAdminAndLoad();
@@ -99,6 +107,17 @@ async function checkAdminAndLoad() {
       0
     );
   }, [images]);
+
+  const riskCounts = useMemo(() => ({
+    normal: products.filter((p) => (p.ai_review_bucket || "normal") === "normal").length,
+    review: products.filter((p) => p.ai_review_bucket === "review").length,
+    likely_scam: products.filter((p) => p.ai_review_bucket === "likely_scam").length,
+  }), [products]);
+
+  const filteredProducts = useMemo(() => {
+    if (riskFilter === "all") return products;
+    return products.filter((p) => (p.ai_review_bucket || "normal") === riskFilter);
+  }, [products, riskFilter]);
 
   async function loadPendingProducts() {
     setLoading(true);
@@ -366,79 +385,34 @@ async function checkAdminAndLoad() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7faf9]">
-      {/* HEADER */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <main className="eco-page min-h-screen text-white pb-24 relative overflow-hidden">
+      <Navbar />
+
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
+
+      {/* ADMIN CONTENT */}
+      <section className="relative mx-auto max-w-7xl px-4 pt-28 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <button
-              onClick={() =>
-                router.push("/")
-              }
-              className="text-2xl font-bold text-[#187052]"
-            >
-              EcoMatch
-            </button>
-
-            <p className="text-xs font-medium text-gray-500">
-              Admin Verification Panel
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() =>
-                router.push(
-                  "/marketplace"
-                )
-              }
-              className="hidden rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 md:block"
-            >
-              Marketplace
-            </button>
-
-            <button
-              onClick={
-                loadPendingProducts
-              }
-              disabled={loading}
-              className="hidden rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:block"
-            >
-              ↻ Refresh
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN */}
-      <section className="mx-auto max-w-7xl px-6 py-10">
-        {/* HEADING */}
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-bold tracking-wide text-[#187052]">
-              TRUST & SAFETY
-            </p>
-
-            <h1 className="mt-2 text-3xl font-bold text-[#163038]">
-              Pending Product Verification
+            <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+              TRUST & SAFETY GATEWAY
+            </span>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">
+              Admin Listing <span className="text-emerald-400">Verification</span>
             </h1>
-
-            <p className="mt-2 max-w-2xl text-gray-600">
-              Review seller submissions,
-              product information and
-              uploaded images before they
-              become visible on the
-              EcoMatch marketplace.
+            <p className="mt-1 text-xs text-white/60">
+              Inspect pending supplier materials, review AI risk signals, and approve or reject submissions.
             </p>
           </div>
+
+          <button
+            onClick={loadPendingProducts}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+          >
+            ↻ Refresh Review Queue
+          </button>
 
           {!loading && (
             <div className="flex gap-3">
@@ -523,11 +497,42 @@ async function checkAdminAndLoad() {
             </div>
           )}
 
+        {!loading && products.length > 0 && (
+          <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "all", label: `All Pending (${products.length})` },
+                { key: "normal", label: `AI Normal (${riskCounts.normal})` },
+                { key: "review", label: `AI Review (${riskCounts.review})` },
+                { key: "likely_scam", label: `Likely Scam (${riskCounts.likely_scam})` },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setRiskFilter(item.key as typeof riskFilter)}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                    riskFilter === item.key
+                      ? item.key === "likely_scam"
+                        ? "bg-red-600 text-white"
+                        : item.key === "review"
+                          ? "bg-amber-500 text-white"
+                          : "bg-[#163038] text-white"
+                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">AI buckets only prioritize review. Final approve/reject decision remains with the admin.</p>
+          </div>
+        )}
+
         {/* PRODUCTS */}
         {!loading &&
           products.length > 0 && (
-            <div className="mt-8 space-y-6">
-              {products.map(
+            <div className="mt-6 space-y-6">
+              {filteredProducts.map(
                 (product) => {
                   const productImages =
                     images[
@@ -628,8 +633,21 @@ async function checkAdminAndLoad() {
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="rounded-full bg-[#fff3d6] px-3 py-1 text-xs font-bold text-[#8a6500]">
-                                  ⏳ PENDING
-                                  REVIEW
+                                  ⏳ PENDING REVIEW
+                                </span>
+
+                                <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                  product.ai_review_bucket === "likely_scam"
+                                    ? "bg-red-100 text-red-700"
+                                    : product.ai_review_bucket === "review"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-green-100 text-green-700"
+                                }`}>
+                                  {product.ai_review_bucket === "likely_scam"
+                                    ? `🚨 LIKELY SCAM · Safety ${Math.max(0, 100 - Number(product.ai_risk_score || 0))}/100`
+                                    : product.ai_review_bucket === "review"
+                                      ? `⚠ AI REVIEW · Safety ${Math.max(0, 100 - Number(product.ai_risk_score || 0))}/100`
+                                      : `✓ AI NORMAL · Safety ${Math.max(0, 100 - Number(product.ai_risk_score || 0))}/100`}
                                 </span>
 
                                 <span className="rounded-full bg-[#e1f4ed] px-3 py-1 text-xs font-semibold text-[#187052]">
@@ -678,6 +696,27 @@ async function checkAdminAndLoad() {
                               )}
                             </div>
                           </div>
+
+                          {Array.isArray(product.ai_risk_reasons) && product.ai_risk_reasons.length > 0 ? (
+                            <div className={`mt-5 rounded-xl border p-4 ${
+                              product.ai_review_bucket === "likely_scam"
+                                ? "border-red-200 bg-red-50"
+                                : "border-amber-200 bg-amber-50"
+                            }`}>
+                              <p className="text-sm font-bold text-[#163038]">AI Review Reasons</p>
+                              <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                                {product.ai_risk_reasons.map((reason, index) => (
+                                  <li key={`${product.id}-risk-${index}`}>• {reason}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : product.ai_review_bucket === "normal" ? (
+                            <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
+                              <p className="text-sm font-bold text-green-800">AI Safety Summary</p>
+                              <p className="mt-1 text-sm text-green-700">No major price or classification anomaly was detected by the current risk checks.</p>
+                              <p className="mt-1 text-xs text-green-700/80">Safety score is the inverse of risk score: Risk {Number(product.ai_risk_score || 0)}/100 → Safety {Math.max(0, 100 - Number(product.ai_risk_score || 0))}/100.</p>
+                            </div>
+                          ) : null}
 
                           {/* QUICK DETAILS */}
                           <div className="mt-6 grid gap-4 rounded-xl bg-[#f7faf9] p-4 sm:grid-cols-3">
@@ -876,6 +915,9 @@ async function checkAdminAndLoad() {
           </div>
         </div>
       )}
+
+      <Footer />
+      <MobileBottomNav />
     </main>
   );
 }

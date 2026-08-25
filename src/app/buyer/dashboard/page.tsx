@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import ProductCard from "@/components/ProductCard";
+import { GridSkeleton } from "@/components/SkeletonLoader";
+import {
+  ShoppingCart,
+  Sparkles,
+  Handshake,
+  ShieldCheck,
+  Search,
+  ArrowRight,
+  TrendingDown,
+  Layers,
+} from "lucide-react";
 
 type Product = {
   id: string;
@@ -28,37 +44,22 @@ type ProductImage = {
   verification_status: string;
 };
 
-const categories = [
-  "All",
-  "Metals",
-  "Plastic",
-  "Wood",
-  "Industrial Goods",
-  "Electrical Materials",
-  "Machinery & Equipment",
-  "Construction Materials",
-  "Packaging Materials",
-  "Other",
-];
-
 export default function BuyerDashboard() {
   const supabase = createClient();
   const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [images, setImages] = useState<Record<string, ProductImage[]>>({});
-
+  const [dealsCount, setDealsCount] = useState(0);
+  const [offersCount, setOffersCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-
   useEffect(() => {
-    fetchProducts();
+    fetchBuyerData();
   }, []);
 
-  async function fetchProducts() {
+  async function fetchBuyerData() {
     setLoading(true);
     setError("");
 
@@ -72,374 +73,156 @@ export default function BuyerDashboard() {
       return;
     }
 
-    const { data, error: productError } = await supabase
-      .from("products")
-      .select("*")
-      .eq("status", "approved")
-      .order("created_at", { ascending: false });
+    const [productRes, dealsRes, offersRes] = await Promise.all([
+      supabase.from("products").select("*").eq("status", "approved").limit(6),
+      supabase.from("deal_requests").select("id", { count: "exact" }).eq("buyer_id", user.id),
+      supabase.from("product_offers").select("id", { count: "exact" }).eq("buyer_id", user.id),
+    ]);
 
-    if (productError) {
-      console.error("BUYER PRODUCTS ERROR:", productError);
-
-      setError(productError.message);
-      setProducts([]);
-      setImages({});
+    if (productRes.error) {
+      setError(productRes.error.message);
       setLoading(false);
       return;
     }
 
-    const approvedProducts = (data || []) as Product[];
+    const approved = (productRes.data || []) as Product[];
+    setProducts(approved);
+    setDealsCount(dealsRes.count || 0);
+    setOffersCount(offersRes.count || 0);
 
-    setProducts(approvedProducts);
+    if (approved.length > 0) {
+      const pIds = approved.map((p) => p.id);
+      const { data: imgData } = await supabase
+        .from("product_images")
+        .select("*")
+        .in("product_id", pIds)
+        .eq("verification_status", "approved");
 
-    if (approvedProducts.length === 0) {
-      setImages({});
-      setLoading(false);
-      return;
-    }
-
-    const productIds = approvedProducts.map((product) => product.id);
-
-    const { data: imageData, error: imageError } = await supabase
-      .from("product_images")
-      .select("*")
-      .in("product_id", productIds)
-      .eq("verification_status", "approved");
-
-    if (imageError) {
-      console.error("BUYER IMAGE ERROR:", imageError);
-      setImages({});
-    } else {
-      const groupedImages: Record<string, ProductImage[]> = {};
-
-      ((imageData || []) as ProductImage[]).forEach((image) => {
-        if (!groupedImages[image.product_id]) {
-          groupedImages[image.product_id] = [];
-        }
-
-        groupedImages[image.product_id].push(image);
-      });
-
-      setImages(groupedImages);
+      if (imgData) {
+        const grouped: Record<string, ProductImage[]> = {};
+        imgData.forEach((img) => {
+          if (!grouped[img.product_id]) grouped[img.product_id] = [];
+          grouped[img.product_id].push(img);
+        });
+        setImages(grouped);
+      }
     }
 
     setLoading(false);
   }
 
-  const filteredProducts = useMemo(() => {
-    const searchText = search.toLowerCase().trim();
-
-    return products.filter((product) => {
-      const matchesSearch =
-        !searchText ||
-        product.title.toLowerCase().includes(searchText) ||
-        product.category.toLowerCase().includes(searchText) ||
-        product.material.toLowerCase().includes(searchText) ||
-        (product.description || "").toLowerCase().includes(searchText) ||
-        (product.specifications || "").toLowerCase().includes(searchText);
-
-      const matchesCategory =
-        category === "All" || product.category === category;
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, search, category]);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
-
   return (
-    <main className="min-h-screen bg-[#f7faf9] text-[#163038]">
-      {/* NAVBAR */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <button
-            onClick={() => router.push("/")}
-            className="text-2xl font-bold text-[#187052]"
-          >
-            EcoMatch
-          </button>
+    <main className="eco-page min-h-screen text-white pb-24">
+      <Navbar />
+
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
+
+      <div className="relative mx-auto max-w-7xl px-4 pt-28 sm:px-6 lg:px-8">
+        {/* Header Title */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+              PROCUREMENT HUB
+            </span>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">
+              Buyer <span className="text-emerald-400">Dashboard</span>
+            </h1>
+            <p className="mt-1 text-xs text-white/60">
+              Procure verified surplus materials, match requirements with AI, and track deal rooms.
+            </p>
+          </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/marketplace")}
-              className="hidden rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 md:block"
+            <Link
+              href="/ai-match"
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/20 px-4 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
             >
-              Marketplace
-            </button>
-
-            <button
-              onClick={() => router.push("/chat/inbox")}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              <Sparkles className="h-4 w-4" /> AI Requirement Match
+            </Link>
+            <Link
+              href="/marketplace"
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-black text-[#03140e] hover:bg-emerald-300"
             >
-              💬 Messages
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Logout
-            </button>
+              Explore Catalog <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
-      </header>
 
-      {/* HERO */}
-      <section className="bg-[#187052]">
-        <div className="mx-auto max-w-7xl px-6 py-12 text-white">
-          <p className="mb-2 text-sm font-bold tracking-wide text-green-100">
-            BUY SMART. BUY SUSTAINABLE.
-          </p>
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/15 p-4 text-xs font-bold text-red-300">
+            {error}
+          </div>
+        )}
 
-          <h1 className="text-4xl font-bold">
-            Find the materials you need.
-          </h1>
+        {/* Bento Stats */}
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Link
+            href="/deals"
+            className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-xl backdrop-blur-xl transition hover:border-emerald-400/50 hover:scale-[1.02]"
+          >
+            <div className="flex items-center justify-between text-white/50 text-xs">
+              <span>My Active Deals</span>
+              <Handshake className="h-4 w-4 text-emerald-400" />
+            </div>
+            <p className="mt-2 text-3xl font-black text-emerald-300">{dealsCount}</p>
+            <p className="mt-1 text-[11px] text-white/50">OTP Handover Deal Rooms</p>
+          </Link>
 
-          <p className="mt-3 max-w-2xl text-green-100">
-            Explore verified recyclable, reusable and industrial materials
-            available on EcoMatch.
-          </p>
+          <Link
+            href="/offers"
+            className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-xl backdrop-blur-xl transition hover:border-emerald-400/50 hover:scale-[1.02]"
+          >
+            <div className="flex items-center justify-between text-white/50 text-xs">
+              <span>Outgoing Offers</span>
+              <TrendingDown className="h-4 w-4 text-amber-400" />
+            </div>
+            <p className="mt-2 text-3xl font-black text-amber-300">{offersCount}</p>
+            <p className="mt-1 text-[11px] text-white/50">Price Counter-Negotiations</p>
+          </Link>
 
-          {/* SEARCH */}
-          <div className="mt-7 flex max-w-3xl overflow-hidden rounded-xl bg-white shadow-lg">
-            <input
-              type="text"
-              placeholder="Search aluminium, plastic, wood, specifications..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 px-5 py-4 text-[#163038] outline-none placeholder:text-gray-500"
-            />
-
-            <button
-              onClick={fetchProducts}
-              className="bg-[#125c43] px-7 font-semibold text-white hover:bg-[#0e4c37]"
-            >
-              Refresh
-            </button>
+          <div className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-xl backdrop-blur-xl">
+            <div className="flex items-center justify-between text-white/50 text-xs">
+              <span>Escrow Protection</span>
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            </div>
+            <p className="mt-2 text-3xl font-black text-white">100%</p>
+            <p className="mt-1 text-[11px] text-emerald-400">Secure Transfer Standard</p>
           </div>
         </div>
-      </section>
 
-      {/* CONTENT */}
-      <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid gap-8 lg:grid-cols-[230px_1fr]">
-          {/* SIDEBAR */}
-          <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-[#163038]">
-              Categories
-            </h2>
-
-            <div className="mt-4 space-y-2">
-              {categories.map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setCategory(item)}
-                  className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm transition ${
-                    category === item
-                      ? "bg-[#e1f4ed] font-semibold text-[#187052]"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-8 border-t border-gray-100 pt-5">
-              <p className="text-sm font-bold text-[#163038]">
-                More Tools
-              </p>
-
-              <button
-                onClick={() => router.push("/marketplace")}
-                className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                Advanced Filters
-              </button>
-
-              <button
-                onClick={() => router.push("/ai-match")}
-                className="mt-2 w-full rounded-lg bg-[#187052] px-3 py-2 text-sm font-semibold text-white hover:bg-[#125c43]"
-              >
-                🤖 AI Matching
-              </button>
-            </div>
-          </aside>
-
-          {/* PRODUCTS */}
-          <div>
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">
-                  Available Materials
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  {filteredProducts.length} approved product
-                  {filteredProducts.length !== 1 ? "s" : ""} found
-                </p>
-              </div>
-
-              <button
-                onClick={() => router.push("/marketplace")}
-                className="text-sm font-semibold text-[#187052] hover:underline"
-              >
-                Open Full Marketplace →
-              </button>
-            </div>
-
-            {/* ERROR */}
-            {!loading && error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            {/* LOADING */}
-            {loading ? (
-              <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
-                <p className="font-semibold text-[#163038]">
-                  Loading verified products...
-                </p>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              /* EMPTY */
-              <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
-                <div className="text-5xl">♻️</div>
-
-                <h3 className="mt-4 text-lg font-bold">
-                  No products found
-                </h3>
-
-                <p className="mt-2 text-sm text-gray-500">
-                  Try another search term or category.
-                </p>
-
-                <button
-                  onClick={() => {
-                    setSearch("");
-                    setCategory("All");
-                  }}
-                  className="mt-5 rounded-lg bg-[#187052] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#125c43]"
-                >
-                  Clear Search
-                </button>
-              </div>
-            ) : (
-              /* PRODUCT GRID */
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredProducts.map((product) => {
-                  const productImage =
-                    images[product.id]?.[0]?.image_url;
-
-                  return (
-                    <article
-                      key={product.id}
-                      className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-                    >
-                      {/* IMAGE */}
-                      <div className="h-48 bg-[#eef3f1]">
-                        {productImage ? (
-                          <img
-                            src={productImage}
-                            alt={product.title}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-5xl">
-                                📦
-                              </div>
-
-                              <p className="mt-2 text-xs text-gray-500">
-                                No product image
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* DETAILS */}
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-wide text-[#187052]">
-                              {product.category}
-                            </p>
-
-                            <h3 className="mt-1 text-lg font-bold text-[#163038]">
-                              {product.title}
-                            </h3>
-                          </div>
-
-                          <span className="rounded-full bg-[#e1f4ed] px-2.5 py-1 text-xs font-semibold text-[#187052]">
-                            Verified
-                          </span>
-                        </div>
-
-                        <p className="mt-3 text-sm text-gray-600">
-                          {product.material}
-                        </p>
-
-                        {product.specifications && (
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
-                            {product.specifications}
-                          </p>
-                        )}
-
-                        <div className="mt-4 flex items-end justify-between gap-4">
-                          <div>
-                            <p className="text-xs text-gray-500">
-                              Expected Price
-                            </p>
-
-                            <p className="text-xl font-bold text-[#163038]">
-                              ₹{product.price.toLocaleString("en-IN")}
-                            </p>
-
-                            {product.is_negotiable && (
-                              <p className="text-xs font-semibold text-[#187052]">
-                                Negotiable
-                              </p>
-                            )}
-                          </div>
-
-                          <span className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700">
-                            {product.condition}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 border-t border-gray-100 pt-4">
-                          <p className="text-xs text-gray-500">
-                            Available quantity
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold text-[#163038]">
-                            {product.quantity} {product.quantity_unit}
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={() =>
-                            router.push(`/product/${product.id}`)
-                          }
-                          className="mt-5 w-full rounded-xl bg-[#187052] py-3 text-sm font-semibold text-white hover:bg-[#125c43]"
-                        >
-                          View Product
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+        {/* Recommended Circular Stock */}
+        <div className="mt-10 space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Freshly Verified Materials</h3>
+            <Link href="/marketplace" className="text-xs font-bold text-emerald-400 hover:underline">
+              View all
+            </Link>
           </div>
+
+          {loading ? (
+            <GridSkeleton count={3} />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {products.map((product) => {
+                const productImages = images[product.id] || [];
+                const firstImageUrl = productImages[0]?.image_url || null;
+
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    imageUrl={firstImageUrl}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
-      </section>
+      </div>
+
+      <Footer />
+      <MobileBottomNav />
     </main>
   );
 }

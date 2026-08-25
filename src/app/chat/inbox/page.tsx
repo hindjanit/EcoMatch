@@ -2,7 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import {
+  MessageSquare,
+  ArrowRight,
+  Boxes,
+  User,
+  Clock,
+  ChevronRight,
+} from "lucide-react";
 
 type Conversation = {
   id: number;
@@ -37,11 +49,7 @@ export default function ChatInboxPage() {
   const router = useRouter();
 
   const [userId, setUserId] = useState("");
-
-  const [conversations, setConversations] = useState<
-    InboxConversation[]
-  >([]);
-
+  const [conversations, setConversations] = useState<InboxConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,447 +73,156 @@ export default function ChatInboxPage() {
 
     setUserId(user.id);
 
-    // Buyer + Seller conversations
-    const {
-      data: conversationData,
-      error: conversationError,
-    } = await supabase
+    const { data: conversationData, error: conversationError } = await supabase
       .from("conversations")
       .select("*")
-      .or(
-        `buyer_id.eq.${user.id},seller_id.eq.${user.id}`
-      )
-      .order("created_at", {
-        ascending: false,
-      });
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order("created_at", { ascending: false });
 
     if (conversationError) {
-      console.error(
-        "Conversation error:",
-        conversationError
-      );
-
       setError(conversationError.message);
       setLoading(false);
       return;
     }
 
-    const conversationList =
-      (conversationData || []) as Conversation[];
-
+    const conversationList = (conversationData || []) as Conversation[];
     if (conversationList.length === 0) {
       setConversations([]);
       setLoading(false);
       return;
     }
 
-    // ---------------------------------
-    // FETCH PRODUCTS
-    // ---------------------------------
-
-    const productIds = [
-      ...new Set(
-        conversationList.map(
-          (conversation) => conversation.product_id
-        )
-      ),
-    ];
-
-    const {
-      data: productData,
-      error: productError,
-    } = await supabase
+    const productIds = [...new Set(conversationList.map((c) => c.product_id))];
+    const { data: productData } = await supabase
       .from("products")
       .select("id, title, category, price")
       .in("id", productIds);
 
-    if (productError) {
-      console.error(
-        "Product loading error:",
-        productError
-      );
-    }
-
     const productMap: Record<number, Product> = {};
+    (productData || []).forEach((p) => {
+      productMap[p.id] = p as Product;
+    });
 
-    ((productData || []) as Product[]).forEach(
-      (product) => {
-        productMap[product.id] = product;
-      }
-    );
-
-    // ---------------------------------
-    // FETCH MESSAGES
-    // ---------------------------------
-
-    const conversationIds = conversationList.map(
-      (conversation) => conversation.id
-    );
-
-    const {
-      data: messageData,
-      error: messageError,
-    } = await supabase
+    const conversationIds = conversationList.map((c) => c.id);
+    const { data: messageData } = await supabase
       .from("messages")
       .select("*")
       .in("conversation_id", conversationIds)
-      .order("created_at", {
-        ascending: false,
-      });
+      .order("created_at", { ascending: false });
 
-    if (messageError) {
-      console.error(
-        "Messages loading error:",
-        messageError
-      );
-    }
-
-    const lastMessageMap: Record<number, Message> = {};
-
-    ((messageData || []) as Message[]).forEach(
-      (message) => {
-        // Since query is descending,
-        // first message = latest message
-        if (!lastMessageMap[message.conversation_id]) {
-          lastMessageMap[message.conversation_id] =
-            message;
-        }
+    const messageMap: Record<number, Message> = {};
+    (messageData || []).forEach((m) => {
+      if (!messageMap[m.conversation_id]) {
+        messageMap[m.conversation_id] = m as Message;
       }
-    );
-
-    // ---------------------------------
-    // COMBINE DATA
-    // ---------------------------------
-
-    const finalConversations: InboxConversation[] =
-      conversationList.map((conversation) => ({
-        ...conversation,
-
-        product:
-          productMap[conversation.product_id],
-
-        lastMessage:
-          lastMessageMap[conversation.id],
-      }));
-
-    // Sort by latest message
-    finalConversations.sort((a, b) => {
-      const aTime = new Date(
-        a.lastMessage?.created_at || a.created_at
-      ).getTime();
-
-      const bTime = new Date(
-        b.lastMessage?.created_at || b.created_at
-      ).getTime();
-
-      return bTime - aTime;
     });
 
-    setConversations(finalConversations);
+    const enriched: InboxConversation[] = conversationList.map((conv) => ({
+      ...conv,
+      product: productMap[conv.product_id],
+      lastMessage: messageMap[conv.id],
+    }));
+
+    setConversations(enriched);
     setLoading(false);
   }
 
-  function openConversation(
-    conversationId: number
-  ) {
-    router.push(
-      `/chat?conversation=${conversationId}`
-    );
-  }
-
-  function formatTime(date: string) {
-    const messageDate = new Date(date);
-
-    const today = new Date();
-
-    const sameDay =
-      messageDate.toDateString() ===
-      today.toDateString();
-
-    if (sameDay) {
-      return messageDate.toLocaleTimeString(
-        "en-IN",
-        {
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
-    }
-
-    return messageDate.toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-      }
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-[#f7faf9]">
+    <main className="eco-page min-h-screen text-white pb-24">
+      <Navbar />
 
-      {/* HEADER */}
-      <header className="border-b border-gray-200 bg-white">
+      <div className="eco-orb eco-orb-one" />
+      <div className="eco-orb eco-orb-two" />
 
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-
-          <button
-            onClick={() =>
-              router.push("/marketplace")
-            }
-            className="text-2xl font-bold text-[#187052]"
-          >
-            EcoMatch
-          </button>
-
-          <div className="flex items-center gap-3">
-
-            <button
-              onClick={() =>
-                router.push("/seller/dashboard")
-              }
-              className="hidden rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 sm:block"
-            >
-              Seller Dashboard
-            </button>
-
-            <button
-              onClick={() =>
-                router.push("/marketplace")
-              }
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Marketplace
-            </button>
-
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* MAIN */}
-      <section className="mx-auto max-w-5xl px-6 py-10">
-
-        <div className="mb-8">
-
-          <p className="text-sm font-bold tracking-wide text-[#187052]">
-            ECOMATCH MESSAGES
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold text-[#163038]">
-            Conversations
+      <div className="relative mx-auto max-w-5xl px-4 pt-28 sm:px-6 lg:px-8">
+        <div>
+          <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
+            SECURE MESSAGING
+          </span>
+          <h1 className="mt-2 text-3xl font-black sm:text-4xl">
+            Chat <span className="text-emerald-400">Inbox</span>
           </h1>
-
-          <p className="mt-2 text-gray-600">
-            Keep track of your buyer and seller
-            conversations.
+          <p className="mt-1 text-xs text-white/60">
+            Direct real-time negotiations and material inquiries with verified members.
           </p>
-
         </div>
 
-        {/* LOADING */}
-        {loading && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
-
-            <div className="text-5xl">
-              💬
-            </div>
-
-            <p className="mt-4 font-semibold text-[#163038]">
-              Loading conversations...
-            </p>
-
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/15 p-4 text-xs font-bold text-red-300">
+            {error}
           </div>
         )}
 
-        {/* ERROR */}
-        {!loading && error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-
-            <h2 className="font-bold text-red-700">
-              Unable to load messages
-            </h2>
-
-            <p className="mt-2 text-sm text-red-600">
-              {error}
+        {loading ? (
+          <div className="mt-8 space-y-3">
+            <div className="shimmer-box h-20 w-full rounded-2xl" />
+            <div className="shimmer-box h-20 w-full rounded-2xl" />
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="mt-10 rounded-3xl border border-emerald-500/20 bg-[#061d15]/60 p-12 text-center shadow-2xl backdrop-blur-xl">
+            <MessageSquare className="mx-auto h-12 w-12 text-emerald-400/40" />
+            <h3 className="mt-4 text-xl font-bold">No Conversations Yet</h3>
+            <p className="mx-auto mt-2 max-w-sm text-xs text-white/50">
+              When you inquire about a material or a buyer contacts you, your messages will appear here.
             </p>
-
-            <button
-              onClick={loadInbox}
-              className="mt-4 rounded-lg bg-[#187052] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#125c43]"
+            <Link
+              href="/marketplace"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-xs font-black text-[#03140e] hover:bg-emerald-300"
             >
-              Try Again
-            </button>
+              Browse Materials <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-3">
+            {conversations.map((conv) => {
+              const isMe = conv.lastMessage?.sender_id === userId;
 
+              return (
+                <Link
+                  key={conv.id}
+                  href={`/chat?conversation=${conv.id}`}
+                  className="flex items-center justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-xl backdrop-blur-xl transition hover:border-emerald-400/50 hover:bg-[#07251c]/90"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 font-bold">
+                      <MessageSquare className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
+                          {conv.product?.category || "Material"}
+                        </span>
+                        <h4 className="font-bold text-white">
+                          {conv.product?.title || `Product #${conv.product_id}`}
+                        </h4>
+                      </div>
+                      <p className="mt-1 text-xs text-white/60 line-clamp-1">
+                        {isMe && <strong className="text-emerald-400 font-normal">You: </strong>}
+                        {conv.lastMessage?.message || "Conversation started..."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-white/40">
+                    {conv.lastMessage && (
+                      <span className="text-[11px]">
+                        {new Date(conv.lastMessage.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-emerald-400" />
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
+      </div>
 
-        {/* EMPTY */}
-        {!loading &&
-          !error &&
-          conversations.length === 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
-
-              <div className="text-6xl">
-                💬
-              </div>
-
-              <h2 className="mt-5 text-xl font-bold text-[#163038]">
-                No conversations yet
-              </h2>
-
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
-                Conversations will appear here when
-                you contact a seller or a buyer contacts
-                you.
-              </p>
-
-              <button
-                onClick={() =>
-                  router.push("/marketplace")
-                }
-                className="mt-6 rounded-xl bg-[#187052] px-6 py-3 font-semibold text-white hover:bg-[#125c43]"
-              >
-                Browse Marketplace
-              </button>
-
-            </div>
-          )}
-
-        {/* CONVERSATIONS */}
-        {!loading &&
-          !error &&
-          conversations.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-
-              {conversations.map(
-                (conversation, index) => {
-
-                  const isBuyer =
-                    conversation.buyer_id ===
-                    userId;
-
-                  const lastMessage =
-                    conversation.lastMessage;
-
-                  const sentByMe =
-                    lastMessage?.sender_id ===
-                    userId;
-
-                  return (
-                    <button
-                      key={conversation.id}
-                      onClick={() =>
-                        openConversation(
-                          conversation.id
-                        )
-                      }
-                      className={`w-full p-5 text-left transition hover:bg-[#f7faf9] ${
-                        index !==
-                        conversations.length - 1
-                          ? "border-b border-gray-100"
-                          : ""
-                      }`}
-                    >
-
-                      <div className="flex items-start gap-4">
-
-                        {/* Avatar */}
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#e1f4ed] text-xl">
-                          {isBuyer ? "🏪" : "🛒"}
-                        </div>
-
-                        {/* Details */}
-                        <div className="min-w-0 flex-1">
-
-                          <div className="flex items-start justify-between gap-3">
-
-                            <div className="min-w-0">
-
-                              <div className="flex flex-wrap items-center gap-2">
-
-                                <h2 className="truncate font-bold text-[#163038]">
-                                  {conversation.product
-                                    ?.title ||
-                                    `Product #${conversation.product_id}`}
-                                </h2>
-
-                                <span className="rounded-full bg-[#eef9f4] px-2 py-0.5 text-[10px] font-bold text-[#187052]">
-                                  {isBuyer
-                                    ? "SELLER"
-                                    : "BUYER"}
-                                </span>
-
-                              </div>
-
-                              {conversation.product && (
-                                <p className="mt-1 text-xs text-gray-500">
-                                  {
-                                    conversation
-                                      .product.category
-                                  }
-                                  {" • "}
-                                  ₹
-                                  {conversation.product.price.toLocaleString(
-                                    "en-IN"
-                                  )}
-                                </p>
-                              )}
-
-                            </div>
-
-                            <p className="shrink-0 text-xs text-gray-400">
-                              {formatTime(
-                                lastMessage
-                                  ?.created_at ||
-                                  conversation.created_at
-                              )}
-                            </p>
-
-                          </div>
-
-                          {/* Last Message */}
-                          <div className="mt-3">
-
-                            {lastMessage ? (
-                              <p className="truncate text-sm text-gray-600">
-
-                                {sentByMe && (
-                                  <span className="font-semibold text-[#187052]">
-                                    You:{" "}
-                                  </span>
-                                )}
-
-                                {lastMessage.message}
-
-                              </p>
-                            ) : (
-                              <p className="text-sm italic text-gray-400">
-                                No messages yet
-                              </p>
-                            )}
-
-                          </div>
-
-                        </div>
-
-                        <div className="self-center text-gray-400">
-                          ›
-                        </div>
-
-                      </div>
-
-                    </button>
-                  );
-                }
-              )}
-
-            </div>
-          )}
-
-      </section>
-
+      <Footer />
+      <MobileBottomNav />
     </main>
   );
 }
