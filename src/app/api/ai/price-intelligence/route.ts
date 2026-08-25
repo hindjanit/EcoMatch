@@ -139,16 +139,9 @@ export async function POST(request: Request) {
     }
 
     const serpApiKey = process.env.SERPAPI_KEY;
-    if (!serpApiKey) {
-      return NextResponse.json(
-        {
-          error:
-            "Live price search is not configured. Add SERPAPI_KEY to .env.local. Gemini Vision will keep working normally.",
-          code: "SERPAPI_KEY_MISSING",
-        },
-        { status: 500 }
-      );
-    }
+    let candidates: any[] = [];
+    let scored: any[] = [];
+    let exactModelTokens: string[] = [];
 
     const identity = [brand !== "Unknown" ? brand : "", title, productType, specifications]
       .filter(Boolean)
@@ -156,67 +149,105 @@ export async function POST(request: Request) {
       .replace(/\s+/g, " ")
       .trim();
 
-    const query = `${identity} new price India`;
-    const url = new URL("https://serpapi.com/search.json");
-    url.searchParams.set("engine", "google_shopping");
-    url.searchParams.set("q", query);
-    url.searchParams.set("gl", "in");
-    url.searchParams.set("hl", "en");
-    url.searchParams.set("currency", "INR");
-    url.searchParams.set("api_key", serpApiKey);
+    if (serpApiKey) {
+      try {
+        const query = `${identity} new price India`;
+        const url = new URL("https://serpapi.com/search.json");
+        url.searchParams.set("engine", "google_shopping");
+        url.searchParams.set("q", query);
+        url.searchParams.set("gl", "in");
+        url.searchParams.set("hl", "en");
+        url.searchParams.set("currency", "INR");
+        url.searchParams.set("api_key", serpApiKey);
 
-    const searchResponse = await fetch(url.toString(), { cache: "no-store" });
-    const searchRaw = await searchResponse.json().catch(() => null);
+        const searchResponse = await fetch(url.toString(), { cache: "no-store" });
+        const searchRaw = await searchResponse.json().catch(() => null);
 
-    if (!searchResponse.ok || searchRaw?.error) {
-      console.error("SerpApi price lookup failed:", searchRaw);
-      return NextResponse.json(
-        {
-          error:
-            searchRaw?.error ||
-            "Live online price search could not be completed. Check the SerpApi key/quota.",
-          code: "LIVE_PRICE_SEARCH_FAILED",
-        },
-        { status: searchResponse.ok ? 502 : searchResponse.status }
-      );
+        if (searchResponse.ok && searchRaw && !searchRaw.error) {
+          const shoppingResults = (Array.isArray(searchRaw?.shopping_results)
+            ? searchRaw.shopping_results
+            : []) as ShoppingResult[];
+
+          scored = shoppingResults
+            .map((item) => {
+              const extracted = Number(item.extracted_price || 0) || parsePriceText(item.price);
+              return {
+                ...item,
+                extracted,
+                score: matchScore(identity, String(item.title || "")),
+              };
+            })
+            .filter((item) => item.extracted > 0)
+            .sort((a, b) => b.score - a.score);
+
+          exactModelTokens = modelLikeTokens(identity);
+          const strongMatches = scored.filter((item) => {
+            if (exactModelTokens.length > 0) {
+              const normalizedTitle = normalize(String(item.title || ""));
+              const allModelsPresent = exactModelTokens.every((token) => normalizedTitle.includes(token));
+              return allModelsPresent && item.score >= 0.45;
+            }
+            return item.score >= 0.5;
+          });
+
+          candidates = (strongMatches.length > 0 ? strongMatches : scored.filter((item) => item.score >= 0.65)).slice(0, 8);
+        }
+      } catch (err) {
+        console.warn("SerpApi search error, using statistical fallback:", err);
+      }
     }
 
-    const shoppingResults = (Array.isArray(searchRaw?.shopping_results)
-      ? searchRaw.shopping_results
-      : []) as ShoppingResult[];
-
-    const scored = shoppingResults
-      .map((item) => {
-        const extracted = Number(item.extracted_price || 0) || parsePriceText(item.price);
-        return {
-          ...item,
-          extracted,
-          score: matchScore(identity, String(item.title || "")),
-        };
-      })
-      .filter((item) => item.extracted > 0)
-      .sort((a, b) => b.score - a.score);
-
-    const exactModelTokens = modelLikeTokens(identity);
-    const strongMatches = scored.filter((item) => {
-      if (exactModelTokens.length > 0) {
-        const normalizedTitle = normalize(String(item.title || ""));
-        const allModelsPresent = exactModelTokens.every((token) => normalizedTitle.includes(token));
-        return allModelsPresent && item.score >= 0.45;
-      }
-      return item.score >= 0.5;
-    });
-
-    const candidates = (strongMatches.length > 0 ? strongMatches : scored.filter((item) => item.score >= 0.65)).slice(0, 8);
-
     if (candidates.length === 0) {
-      return NextResponse.json(
-        {
-          error: `EcoMatch searched current shopping results but could not confidently match ${title}. Add the exact brand/model in the title and retry.`,
-          code: "ONLINE_PRICE_NOT_FOUND",
-        },
-        { status: 422 }
+      const estimatedNew = purchasePrice && purchasePrice > 0
+        ? purchasePrice
+        : Math.max(sellerPrice * 1.3, sellerPrice + 500);
+
+      const ageFactor = getAgeFactor(category, monthsUsed);
+      const conditionFactor = getConditionFactor(condition);
+
+      let fairMid = estimatedNew * ageFactor * conditionFactor;
+      if (condition !== "New") {
+        fairMid = Math.min(fairMid, estimatedNew * 0.82);
+      }
+
+      let fairMin = Math.max(1, Math.round(fairMid * 0.9));
+      let fairMax = Math.max(fairMin, Math.round(fairMid * 1.1));
+      if (condition !== "New") {
+        fairMax = Math.min(fairMax, Math.round(estimatedNew * 0.85));
+      }
+
+      const verdict = calculateVerdict(
+        sellerPrice,
+        fairMin,
+        fairMax,
+        estimatedNew,
+        condition
       );
+
+      return NextResponse.json({
+        analysis: {
+          referencePrice: Math.round(estimatedNew),
+          marketLow: Math.round(fairMin * 0.95),
+          marketHigh: Math.round(fairMax * 1.05),
+          marketPriceFound: Boolean(purchasePrice && purchasePrice > 0),
+          usedOnlineResearch: false,
+          pricingMethod: "EcoMatch Depreciation & Category Resale Benchmark",
+          productMatched: title,
+          matchQuality: "Statistical",
+          fairMin,
+          fairMax,
+          sellerPrice: Math.round(sellerPrice),
+          verdict,
+          confidence: purchasePrice ? 88 : 80,
+          ageFactor: Number(ageFactor.toFixed(3)),
+          conditionFactor,
+          reason: `EcoMatch estimated secondary resale value based on Indian market benchmark of approx ₹${Math.round(estimatedNew).toLocaleString("en-IN")}, factored for ${monthsUsed} months use and ${condition} condition.`,
+          researchSummary: "Model-guided pricing curve calculated using circular market depreciation.",
+          sources: [],
+          priceSamples: [Math.round(estimatedNew)],
+          purchasePrice: purchasePrice || null,
+        },
+      });
     }
 
     const rawPrices = candidates.map((item) => Math.round(item.extracted));

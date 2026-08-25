@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const prompt = `You are EcoMatch Chat Safety. Decide whether this marketplace chat message is trying to move a buyer/seller conversation outside EcoMatch by sharing or disguising phone numbers, emails, social handles, external links, WhatsApp/Telegram/Instagram contact, or asking the other person to contact elsewhere. Do NOT flag ordinary discussion about product pickup locations, prices, product specifications, or saying that they prefer to stay on EcoMatch. Return ONLY JSON: {"suspicious":true|false,"reason":"short reason"}. Message: ${JSON.stringify(message)}`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0, responseMimeType: "application/json" } }),
