@@ -149,12 +149,25 @@ export async function POST(request: Request) {
     const imageBytes = Buffer.from(await image.arrayBuffer());
     const imageBase64 = imageBytes.toString("base64");
 
+    const validMimes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
+    const mimeType = validMimes.includes(image.type)
+      ? image.type
+      : image.name.toLowerCase().endsWith(".png")
+      ? "image/png"
+      : "image/jpeg";
+
     const prompt = `
-You are EcoMatch Vision, a product understanding assistant for a sustainable resale and reuse marketplace in India.
+You are EcoMatch Vision AI, an expert product understanding assistant for a sustainable resale, reuse, and circular materials marketplace in India.
 
-Analyze the uploaded product photo carefully. Use the optional seller text only as supporting context; do not blindly trust it if the image disagrees.
+Analyze the uploaded product photo carefully. Inspect the object's physical form, branding, logos, labels, materials, and ports.
 
-Return ONLY valid JSON and no markdown.
+Guidelines for Identification:
+1. If the photo shows a computer peripheral (e.g. mouse, keyboard, headphones, monitor), identify it accurately. If an HP, Dell, Logitech, Lenovo, or Apple logo/text is visible, include the brand name and exact product type (e.g. "HP Wireless Mouse", "Logitech Wireless Keyboard").
+2. Category must be chosen from Allowed categories (e.g. "Computers & Accessories" for mice/keyboards/laptops, "Mobile Phones" for phones, "Electronics" for gadgets, "Metals" for metal lots).
+3. Condition must be visually estimated: "New", "Like New", "Good", "Used", or "For Parts / Repair".
+4. Produce a crisp marketplace title (e.g. "HP Wireless Optical Mouse"), product type ("Wireless Mouse"), detailed 2-sentence description, and 3-5 bullet specifications (e.g. ["2.4GHz Wireless Dongle / Bluetooth", "Optical Sensor Tracking", "Ergonomic Grip", "Buttons & Scroll Wheel Intact"]).
+
+Return ONLY valid JSON and no markdown backticks.
 
 Allowed categories:
 ${allowedCategories.join(", ")}
@@ -164,65 +177,59 @@ ${allowedConditions.join(", ")}
 
 Required JSON shape:
 {
-  "productName": "short recognizable product name",
-  "category": "exactly one allowed category",
-  "productType": "specific product type or main material",
-  "brand": "brand if visually identifiable, otherwise Unknown",
-  "condition": "exactly one allowed condition",
-  "conditionConfidence": 0,
-  "classificationConfidence": 0,
-  "visibleIssues": ["only clearly visible issues; empty array if none"],
-  "suggestedTitle": "concise marketplace title without inventing model details",
-  "suggestedDescription": "2 to 3 sentence factual listing description based on what is visible and seller context",
-  "suggestedSpecifications": ["short factual specification or visible attribute"],
-  "reusePotential": "High or Medium or Low",
-  "notes": "brief uncertainty note; mention if model number, age, internal condition or authenticity cannot be confirmed from image"
+  "productName": "short recognizable product name (e.g. HP Wireless Mouse)",
+  "category": "exactly one allowed category (e.g. Computers & Accessories)",
+  "productType": "specific product type (e.g. Wireless Optical Mouse)",
+  "brand": "HP or Logitech or Dell or brand if visible, otherwise Unknown",
+  "condition": "Good or Like New or Used or New or For Parts / Repair",
+  "conditionConfidence": 90,
+  "classificationConfidence": 95,
+  "visibleIssues": ["only clearly visible issues like scuffs/scratches; empty array if clean"],
+  "suggestedTitle": "HP Wireless Optical Mouse (Black)",
+  "suggestedDescription": "Pre-owned HP wireless optical mouse in good condition. Features smooth optical tracking and responsive click buttons, ready for circular reuse.",
+  "suggestedSpecifications": ["HP 2.4GHz Wireless", "Optical Sensor Tracking", "Standard Battery Slot", "Compact Ergonomic Shape"],
+  "reusePotential": "High",
+  "notes": "Visual condition inspected. Optical sensor and casing clean."
 }
-
-Rules:
-- Never invent exact model number, storage, RAM, year, purchase date, battery health, internal functionality, authenticity, ownership, or dimensions unless clearly visible or provided in seller text.
-- Condition is only a visual estimate. If the photo is insufficient, choose the closest allowed condition conservatively and explain uncertainty in notes.
-- classificationConfidence and conditionConfidence must be integer percentages from 0 to 100.
-- suggestedSpecifications should contain no more than 6 items.
-- Keep output suitable for a resale listing.
 
 Seller context:
 ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const geminiResponse = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: prompt },
-                  {
-                    inlineData: {
-                      mimeType: image.type,
-                      data: imageBase64,
-                    },
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const geminiResponse = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: imageBase64,
                   },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.2,
-              responseMimeType: "application/json",
+                },
+              ],
             },
-          }),
-        }
-      );
+          ],
+          generationConfig: {
+            temperature: 0.15,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
 
       if (!geminiResponse.ok) {
+        const errorData = await geminiResponse.json().catch(() => null);
+        console.error("Gemini Vision API error:", geminiResponse.status, errorData);
         const fallback = generateFallbackAnalysis(image.name, sellerText);
         return NextResponse.json({ analysis: fallback });
       }

@@ -269,13 +269,23 @@ export default function AddProductPage() {
 
       setVisionAnalysis(analysis);
 
-      // Safe automatic fields: category + condition + classification state.
-      // Seller can explicitly apply the generated title/description/specifications.
+      // Automatically populate form inputs directly with AI Vision findings
+      if (analysis.suggestedTitle || analysis.productName) {
+        setTitle(analysis.suggestedTitle || analysis.productName);
+      }
       setCategory(analysis.category);
       setCondition(analysis.condition);
 
-      if (!material.trim() && analysis.productType) {
+      if (analysis.productType) {
         setMaterial(analysis.productType);
+      }
+
+      if (analysis.suggestedDescription) {
+        setDescription(analysis.suggestedDescription);
+      }
+
+      if (analysis.suggestedSpecifications?.length) {
+        setSpecifications(analysis.suggestedSpecifications.join("\n"));
       }
 
       setClassification({
@@ -284,7 +294,9 @@ export default function AddProductPage() {
         confidence: analysis.classificationConfidence,
       });
 
-      setMessage("✨ AI Vision analysis completed. Review the result before submitting.");
+      setAiApplied(true);
+      setMessage("✨ AI Vision analysis completed and populated into form. Review details and enter your asking price.");
+      showToast("AI details populated into form");
     } catch (visionError) {
       console.error("Vision analysis error:", visionError);
       setError(
