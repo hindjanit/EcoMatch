@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
@@ -137,9 +137,10 @@ Instructions:
 
     try {
       const geminiResponse = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(8000),
           headers: {
             "Content-Type": "application/json",
             "x-goog-api-key": apiKey,
@@ -153,6 +154,7 @@ Instructions:
             ],
             generationConfig: {
               temperature: 0.1,
+              maxOutputTokens: 600,
               responseMimeType: "application/json",
             },
           }),

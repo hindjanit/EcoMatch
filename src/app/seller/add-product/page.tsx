@@ -231,6 +231,84 @@ export default function AddProductPage() {
   }
 
   // =====================================================
+  // ULTRA-FAST CLIENT-SIDE IMAGE OPTIMIZATION FOR AI VISION
+  // =====================================================
+
+  async function resizeImageForVision(file: File): Promise<Blob> {
+    try {
+      if (typeof createImageBitmap === "function") {
+        const bitmap = await createImageBitmap(file);
+        const maxDim = 768;
+        let width = bitmap.width;
+        let height = bitmap.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(bitmap, 0, 0, width, height);
+          bitmap.close?.();
+          return new Promise((resolve) => {
+            canvas.toBlob((blob) => resolve(blob || file), "image/jpeg", 0.78);
+          });
+        }
+      }
+    } catch {
+      // Fallback to standard reader
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 768;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob((blob) => {
+                resolve(blob || file);
+              }, "image/jpeg", 0.78);
+            } else {
+              resolve(file);
+            }
+          };
+          img.onerror = () => resolve(file);
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+      } catch {
+        resolve(file);
+      }
+    });
+  }
+
+  // =====================================================
   // REAL AI IMAGE ANALYSIS
   // =====================================================
 
@@ -244,9 +322,17 @@ export default function AddProductPage() {
     setMessage("");
     setVisionLoading(true);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+
     try {
+      const optimizedBlob = await resizeImageForVision(selectedImages[0]);
+      const imageToSend = new File([optimizedBlob], selectedImages[0].name || "product.jpg", {
+        type: "image/jpeg",
+      });
+
       const formData = new FormData();
-      formData.append("image", selectedImages[0]);
+      formData.append("image", imageToSend);
       formData.append(
         "sellerText",
         [title, material, description, specifications]
@@ -257,7 +343,10 @@ export default function AddProductPage() {
       const response = await fetch("/api/ai/analyze-product", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
+
+      window.clearTimeout(timeoutId);
 
       const payload = await response.json();
 

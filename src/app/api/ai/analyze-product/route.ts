@@ -197,10 +197,11 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const geminiResponse = await fetch(endpoint, {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
@@ -221,7 +222,8 @@ ${sellerText || "No seller text provided."}
             },
           ],
           generationConfig: {
-            temperature: 0.15,
+            temperature: 0.1,
+            maxOutputTokens: 350,
             responseMimeType: "application/json",
           },
         }),
