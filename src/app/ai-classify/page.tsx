@@ -196,7 +196,6 @@ export default function AIClassifyPage() {
             category: visionResult.category,
             material: visionResult.productType || visionResult.productName,
             condition: visionResult.condition,
-            price: 12500, // standard default estimation
             description: visionResult.suggestedDescription,
             specifications: visionResult.suggestedSpecifications.join("\n"),
             quantity: 1,
@@ -213,7 +212,6 @@ export default function AIClassifyPage() {
             category: textResult.category,
             material: textResult.materialType,
             condition: "Good",
-            price: 8500,
             description: `Verified circular surplus listing for ${textResult.materialType}. Identified for: ${textResult.reuseRoute}.`,
             specifications: `Category: ${textResult.category}\nMaterial: ${textResult.materialType}\nReuse Route: ${textResult.reuseRoute}`,
             quantity: 1,

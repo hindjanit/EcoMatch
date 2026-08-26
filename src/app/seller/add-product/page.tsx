@@ -145,7 +145,6 @@ export default function AddProductPage() {
         if (item.category) setCategory(item.category);
         if (item.material) setMaterial(item.material);
         if (item.condition) setCondition(item.condition);
-        if (item.price) setPrice(String(item.price));
         if (item.description) setDescription(item.description);
         if (item.specifications) setSpecifications(item.specifications);
         if (item.quantity) setQuantity(String(item.quantity));

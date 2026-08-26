@@ -155,7 +155,6 @@ export default function HomeAIClassifierWidget() {
           category: result.category,
           material: result.material,
           condition: result.condition.split(" ")[0] || "Grade A",
-          price: result.estimatedPrice,
           description: result.description,
           specifications: result.specifications,
           quantity: 1,

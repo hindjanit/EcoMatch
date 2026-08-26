@@ -220,7 +220,6 @@ export default function EcoMatchVisionStudio() {
           category: activePreset.category,
           material: activePreset.specs[2] || activePreset.category,
           condition: activePreset.condition,
-          price: activePreset.fairPrice,
           description: activePreset.description,
           specifications: activePreset.specs.join("\n"),
           quantity: 1,
