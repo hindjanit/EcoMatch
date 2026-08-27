@@ -201,25 +201,10 @@ export default function HomeAIClassifierWidget() {
           {/* Left Column: Photo Upload & Prompt Box */}
           <div className="lg:col-span-6 space-y-4">
             <div className="rounded-3xl border border-emerald-500/25 bg-[#0c101a]/90 p-5 shadow-2xl backdrop-blur-xl">
-              {/* Photo Upload Area */}
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-all ${
-                  imagePreview
-                    ? "border-emerald-400/60 bg-[#030e09]"
-                    : "border-white/15 bg-white/5 hover:border-emerald-400/50 hover:bg-white/10"
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-
+              {/* Photo Upload Area (2 Options: Camera & Gallery Upload) */}
+              <div>
                 {imagePreview ? (
-                  <div className="relative h-full w-full p-2">
+                  <div className="relative rounded-2xl border-2 border-emerald-400/60 bg-[#030e09] p-3">
                     <img
                       src={imagePreview}
                       alt="Uploaded Asset"
@@ -227,29 +212,56 @@ export default function HomeAIClassifierWidget() {
                     />
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearImage();
-                      }}
+                      onClick={clearImage}
                       className="absolute top-4 right-4 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
-                    <span className="absolute bottom-4 left-4 rounded-lg border border-emerald-400/50 bg-black/80 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                      ✓ Photo Loaded
-                    </span>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2 px-1">
+                      <span className="rounded-lg border border-emerald-400/50 bg-black/80 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                        ✓ Photo Loaded
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="text-xs font-semibold text-red-400 hover:text-red-300"
+                      >
+                        Remove / Re-select Photo
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="p-6 text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 shadow-sm">
-                      <Camera className="h-6 w-6" />
-                    </div>
-                    <p className="mt-3 text-xs font-bold text-white">
-                      Drop product photo or click to upload
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Supports JPG, PNG, WEBP (Smartphone snaps or factory lots)
-                    </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {/* Option 1: Take Photo */}
+                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-500/40 bg-emerald-950/20 p-5 text-center transition hover:border-emerald-400 hover:bg-emerald-950/40">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 shadow-sm">
+                        <Camera className="h-5 w-5" />
+                      </div>
+                      <p className="mt-2 text-xs font-bold text-white">📷 Click / Take Photo</p>
+                      <p className="mt-1 text-[10px] text-slate-400">Open camera & capture product</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {/* Option 2: Upload from Gallery */}
+                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500/40 bg-sky-950/20 p-5 text-center transition hover:border-sky-400 hover:bg-sky-950/40">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 text-sky-400 shadow-sm">
+                        <Upload className="h-5 w-5" />
+                      </div>
+                      <p className="mt-2 text-xs font-bold text-white">🖼️ Upload from Gallery</p>
+                      <p className="mt-1 text-[10px] text-slate-400">PNG, JPG, WEBP up to 5MB</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
                 )}
               </div>

@@ -262,59 +262,69 @@ export default function AIClassifyPage() {
             <span className="text-[11px] text-slate-400">Powered by Gemini Vision 3.5 Flash</span>
           </div>
 
-          {/* Photo Dropzone / Upload Area */}
+          {/* Photo Dropzone / Upload Area (2 Options: Camera & Gallery Upload) */}
           <div className="mt-4">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-all ${
-                imagePreview
-                  ? "border-sky-400/60 bg-[#060a12]"
-                  : "border-white/15 bg-white/5 hover:border-sky-400/50 hover:bg-white/10"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
-
-              {imagePreview ? (
-                <div className="relative h-full w-full p-2">
-                  <img
-                    src={imagePreview}
-                    alt="Uploaded Asset"
-                    className="h-44 w-full rounded-xl object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearImage();
-                    }}
-                    className="absolute top-4 right-4 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <span className="absolute bottom-4 left-4 rounded-lg border border-emerald-400/50 bg-black/80 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+            {imagePreview ? (
+              <div className="relative rounded-2xl border-2 border-sky-400/60 bg-[#060a12] p-3">
+                <img
+                  src={imagePreview}
+                  alt="Uploaded Asset"
+                  className="h-48 w-full rounded-xl object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="absolute top-4 right-4 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-lg hover:bg-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2 px-1">
+                  <span className="rounded-lg border border-emerald-400/50 bg-emerald-950/80 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
                     ✓ Photo Ready for AI Optical Inspection
                   </span>
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    className="text-xs font-semibold text-red-400 hover:text-red-300"
+                  >
+                    Remove / Choose Another Photo
+                  </button>
                 </div>
-              ) : (
-                <div className="p-6 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 shadow-sm">
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Option 1: Take Photo */}
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-500/40 bg-emerald-950/20 p-6 text-center transition hover:border-emerald-400 hover:bg-emerald-950/40">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-400 shadow-sm">
                     <Camera className="h-6 w-6" />
                   </div>
-                  <p className="mt-3 text-xs font-bold text-white">
-                    Drop product photo or click to upload / snap
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    JPG, PNG, WEBP up to 5MB (Smartphones, industrial lots, technical parts)
-                  </p>
-                </div>
-              )}
-            </div>
+                  <p className="mt-3 text-sm font-bold text-white">📷 Click / Take Photo</p>
+                  <p className="mt-1 text-[11px] text-slate-400">Open camera and capture actual product</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+
+                {/* Option 2: Upload from Gallery */}
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-500/40 bg-sky-950/20 p-6 text-center transition hover:border-sky-400 hover:bg-sky-950/40">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 text-sky-400 shadow-sm">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <p className="mt-3 text-sm font-bold text-white">🖼️ Upload from Gallery</p>
+                  <p className="mt-1 text-[11px] text-slate-400">PNG, JPG, WEBP — up to 5MB</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Textarea */}
