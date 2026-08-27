@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -25,11 +25,16 @@ interface DealRoomCallWidgetProps {
   disabled?: boolean;
 }
 
-const ICE_SERVERS = {
+const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export default function DealRoomCallWidget({
@@ -49,6 +54,7 @@ export default function DealRoomCallWidget({
   const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
   const [callStatusMsg, setCallStatusMsg] = useState("");
+  const [hasRemoteAudio, setHasRemoteAudio] = useState(false);
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -56,11 +62,16 @@ export default function DealRoomCallWidget({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Audio Recorder refs
+  // ICE Candidates Queue for early trickle candidates
+  const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+
+  // Audio Recorder & Context refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const durationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const recordingStartedRef = useRef(false);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -81,31 +92,36 @@ export default function DealRoomCallWidget({
     channel
       .on("broadcast", { event: "CALL_OFFER" }, async ({ payload }) => {
         if (payload.targetId === userId) {
-          if (callState === "idle") {
-            setCallState("incoming");
-            // Store offer data temporarily
-            (window as unknown as { pendingOffer: RTCSessionDescriptionInit }).pendingOffer = payload.offer;
-          }
+          pendingOfferRef.current = payload.offer;
+          setCallState("incoming");
         }
       })
       .on("broadcast", { event: "CALL_ANSWER" }, async ({ payload }) => {
         if (payload.targetId === userId && peerConnectionRef.current) {
-          await peerConnectionRef.current.setRemoteDescription(
-            new RTCSessionDescription(payload.answer)
-          );
-          setCallState("connected");
-          startCallTimer();
-          startCallRecording();
+          try {
+            await peerConnectionRef.current.setRemoteDescription(
+              new RTCSessionDescription(payload.answer)
+            );
+            await flushQueuedIceCandidates();
+            setCallState("connected");
+            startCallTimer();
+          } catch (err) {
+            console.error("Set remote description answer error:", err);
+          }
         }
       })
       .on("broadcast", { event: "ICE_CANDIDATE" }, async ({ payload }) => {
-        if (payload.targetId === userId && peerConnectionRef.current) {
-          try {
-            await peerConnectionRef.current.addIceCandidate(
-              new RTCIceCandidate(payload.candidate)
-            );
-          } catch (e) {
-            console.warn("ICE candidate error:", e);
+        if (payload.targetId === userId && payload.candidate) {
+          const pc = peerConnectionRef.current;
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } catch (e) {
+              console.warn("Add ICE candidate error:", e);
+            }
+          } else {
+            // Queue candidate until remote description is set
+            iceCandidatesQueueRef.current.push(payload.candidate);
           }
         }
       })
@@ -121,7 +137,23 @@ export default function DealRoomCallWidget({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [dealId, userId, callState]);
+  }, [dealId, userId]);
+
+  async function flushQueuedIceCandidates() {
+    const pc = peerConnectionRef.current;
+    if (!pc || !pc.remoteDescription) return;
+
+    while (iceCandidatesQueueRef.current.length > 0) {
+      const candidate = iceCandidatesQueueRef.current.shift();
+      if (candidate) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.warn("Flush ICE candidate error:", e);
+        }
+      }
+    }
+  }
 
   // Timer helpers
   function startCallTimer() {
@@ -136,6 +168,40 @@ export default function DealRoomCallWidget({
     if (durationTimerRef.current) {
       clearInterval(durationTimerRef.current);
       durationTimerRef.current = null;
+    }
+  }
+
+  // Initialize Web Audio playback fallback
+  function ensureAudioPlayback(stream: MediaStream) {
+    try {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.volume = 1.0;
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current
+          .play()
+          .then(() => setHasRemoteAudio(true))
+          .catch((e) => console.warn("Audio element play exception:", e));
+      }
+
+      // Web Audio destination fallback
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+          audioContextRef.current = new AudioCtx();
+        }
+        const ctx = audioContextRef.current;
+        if (ctx.state === "suspended") {
+          ctx.resume().catch(() => {});
+        }
+        const source = ctx.createMediaStreamSource(stream);
+        source.connect(ctx.destination);
+        setHasRemoteAudio(true);
+      }
+    } catch (err) {
+      console.warn("Ensure audio playback error:", err);
     }
   }
 
@@ -161,10 +227,14 @@ export default function DealRoomCallWidget({
 
     // Remote Audio Stream
     pc.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0];
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch((e) => console.warn("Audio autoplay:", e));
+      if (event.streams && event.streams[0]) {
+        remoteStreamRef.current = event.streams[0];
+        ensureAudioPlayback(event.streams[0]);
+
+        // Start recording once both streams are connected
+        if (!recordingStartedRef.current) {
+          startCallRecording();
+        }
       }
     };
 
@@ -176,15 +246,16 @@ export default function DealRoomCallWidget({
           event: "ICE_CANDIDATE",
           payload: {
             targetId: counterpartyId,
-            candidate: event.candidate,
+            candidate: event.candidate.toJSON(),
           },
         });
       }
     };
 
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-        handleEndCall();
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        setCallStatusMsg("Connected • Encrypted Audio");
+        setCallState("connected");
       }
     };
 
@@ -194,11 +265,25 @@ export default function DealRoomCallWidget({
   // 1. OUTGOING CALL
   async function startCall() {
     try {
-      setCallStatusMsg("Connecting encrypted voice channel...");
+      setCallStatusMsg("Accessing secure microphone...");
       setCallState("calling");
 
+      // Unlock AudioContext on user interaction
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        audioContextRef.current = new AudioCtx();
+        if (audioContextRef.current.state === "suspended") {
+          await audioContextRef.current.resume();
+        }
+      }
+
       const pc = await createPeerConnection();
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+      });
       await pc.setLocalDescription(offer);
 
       if (channelRef.current) {
@@ -226,11 +311,25 @@ export default function DealRoomCallWidget({
   async function acceptCall() {
     try {
       setCallStatusMsg("Connecting audio stream...");
+
+      // Unlock AudioContext on user click
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        audioContextRef.current = new AudioCtx();
+        if (audioContextRef.current.state === "suspended") {
+          await audioContextRef.current.resume();
+        }
+      }
+
       const pc = await createPeerConnection();
 
-      const pendingOffer = (window as unknown as { pendingOffer?: RTCSessionDescriptionInit }).pendingOffer;
-      if (pendingOffer) {
-        await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+      const offer = pendingOfferRef.current;
+      if (offer) {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        await flushQueuedIceCandidates();
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
@@ -248,7 +347,6 @@ export default function DealRoomCallWidget({
 
         setCallState("connected");
         startCallTimer();
-        startCallRecording();
       }
     } catch (err) {
       console.error("Accept call error:", err);
@@ -272,20 +370,27 @@ export default function DealRoomCallWidget({
   // 4. CALL RECORDING (MediaRecorder + AudioContext mixing)
   function startCallRecording() {
     try {
+      if (recordingStartedRef.current) return;
+      recordingStartedRef.current = true;
       audioChunksRef.current = [];
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
 
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new AudioCtx();
+      }
+      const audioCtx = audioContextRef.current;
       const dest = audioCtx.createMediaStreamDestination();
 
-      if (localStreamRef.current) {
+      if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
         const localSource = audioCtx.createMediaStreamSource(localStreamRef.current);
         localSource.connect(dest);
       }
 
-      if (remoteStreamRef.current) {
+      if (remoteStreamRef.current && remoteStreamRef.current.getAudioTracks().length > 0) {
         const remoteSource = audioCtx.createMediaStreamSource(remoteStreamRef.current);
         remoteSource.connect(dest);
       }
@@ -298,7 +403,7 @@ export default function DealRoomCallWidget({
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       recorder.onstop = async () => {
@@ -307,7 +412,7 @@ export default function DealRoomCallWidget({
 
       recorder.start(1000);
     } catch (recErr) {
-      console.warn("Call recording initialization failed:", recErr);
+      console.warn("Call recording initialization:", recErr);
     }
   }
 
@@ -381,6 +486,10 @@ export default function DealRoomCallWidget({
 
   function endCallCleanup() {
     stopCallTimer();
+    recordingStartedRef.current = false;
+    iceCandidatesQueueRef.current = [];
+    pendingOfferRef.current = null;
+    setHasRemoteAudio(false);
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try {
@@ -506,7 +615,7 @@ export default function DealRoomCallWidget({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
-                <Volume2 className="h-5 w-5 animate-pulse" />
+                <Volume2 className={`h-5 w-5 ${hasRemoteAudio ? "animate-bounce" : "animate-pulse"}`} />
               </div>
               <div>
                 <h4 className="text-sm font-black text-white">{counterpartyName}</h4>
