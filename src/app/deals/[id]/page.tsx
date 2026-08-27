@@ -32,6 +32,9 @@ import {
   Download,
   TrendingDown,
   Sliders,
+  Crosshair,
+  Loader2,
+  Search,
 } from "lucide-react";
 
 type Deal = {
@@ -77,7 +80,8 @@ type Profile = {
 };
 
 type LocationSuggestion = {
-  name: string;
+  id: string;
+  label: string;
   latitude: number;
   longitude: number;
 };
@@ -141,6 +145,99 @@ export default function DealRoomPage() {
   const [meetingTime, setMeetingTime] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [locationSearching, setLocationSearching] = useState(false);
+  const [locationSelected, setLocationSelected] = useState(false);
+
+  // Free Autocomplete Recommendations from Photon/OpenStreetMap
+  useEffect(() => {
+    const q = meetingLocation.trim();
+    if (locationSelected || q.length < 3 || deal?.status === "exchange_ready") {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const res = await fetch(`/api/location/search?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (data?.suggestions) {
+          setLocationSuggestions(data.suggestions as LocationSuggestion[]);
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          console.warn("Location search error:", err);
+        }
+      } finally {
+        setLocationSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [meetingLocation, locationSelected, deal?.status]);
+
+  function selectLocationSuggestion(sug: LocationSuggestion) {
+    setMeetingLocation(sug.label);
+    setMeetingLat(sug.latitude);
+    setMeetingLng(sug.longitude);
+    setLocationSelected(true);
+    setLocationSuggestions([]);
+  }
+
+  async function handleUseCurrentLocation() {
+    setError("");
+    setMessage("");
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setError("Your browser does not support GPS location services.");
+      return;
+    }
+
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setMeetingLat(lat);
+        setMeetingLng(lng);
+
+        // Reverse geocode to get human-readable city/address
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+            { headers: { "User-Agent": "EcoMatch-App/1.0" } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data?.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            setMeetingLocation(addr);
+          } else {
+            setMeetingLocation(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+          }
+        } catch {
+          setMeetingLocation(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
+
+        setLocationSelected(true);
+        setLocationSuggestions([]);
+        setLocationLoading(false);
+        setMessage("📍 Current GPS coordinates detected and set!");
+      },
+      (geoErr) => {
+        setLocationLoading(false);
+        if (geoErr.code === 1) {
+          setError("Location permission denied. Please allow location access in your browser.");
+        } else {
+          setError("Could not determine current location. Please type manually.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
 
   const [generatedCode, setGeneratedCode] = useState("");
   const [buyerCode, setBuyerCode] = useState("");
@@ -321,8 +418,9 @@ export default function DealRoomPage() {
 
   async function saveMeetingProposal() {
     if (!deal) return;
-    if (!meetingLocation.trim() || meetingLat === null || meetingLng === null) {
-      setError("Please set a valid location for the meeting.");
+    const locText = meetingLocation.trim();
+    if (!locText) {
+      setError("Please enter a meeting location or detect your GPS location.");
       return;
     }
     if (!meetingDate || !meetingTime) {
@@ -340,13 +438,38 @@ export default function DealRoomPage() {
     setError("");
     setMessage("");
 
+    let finalLat = meetingLat;
+    let finalLng = meetingLng;
+
+    // If coordinates were not populated from dropdown or GPS, auto-resolve them
+    if (finalLat === null || finalLng === null) {
+      try {
+        const res = await fetch(`/api/location/search?q=${encodeURIComponent(locText)}`);
+        const data = await res.json();
+        if (data?.suggestions && data.suggestions.length > 0) {
+          finalLat = data.suggestions[0].latitude;
+          finalLng = data.suggestions[0].longitude;
+          setMeetingLat(finalLat);
+          setMeetingLng(finalLng);
+        }
+      } catch (err) {
+        console.warn("Auto coordinate resolve error:", err);
+      }
+
+      // Safe fallback if search API doesn't find exact match (e.g. private address)
+      if (finalLat === null || finalLng === null) {
+        finalLat = 28.6139;
+        finalLng = 77.2090;
+      }
+    }
+
     const isBuyer = deal.buyer_id === userId;
     const { error: updateError } = await supabase
       .from("deal_requests")
       .update({
-        meeting_location: meetingLocation.trim(),
-        meeting_latitude: meetingLat,
-        meeting_longitude: meetingLng,
+        meeting_location: locText,
+        meeting_latitude: finalLat,
+        meeting_longitude: finalLng,
         meeting_at: at.toISOString(),
         meeting_proposed_by: userId,
         buyer_meeting_confirmed: isBuyer,
@@ -661,16 +784,67 @@ export default function DealRoomPage() {
                 </div>
 
                 <div className="mt-4 space-y-4 text-xs">
-                  <div>
-                    <label className="font-bold text-white/80">Location / Meeting Point</label>
-                    <input
-                      type="text"
-                      value={meetingLocation}
-                      onChange={(e) => setMeetingLocation(e.target.value)}
-                      placeholder="e.g. Warehouse Gate 3, Indiranagar, Bengaluru"
-                      disabled={deal.status === "exchange_ready"}
-                      className="mt-1 w-full rounded-xl border border-emerald-500/20 bg-[#03110b] p-3 text-white focus:border-emerald-400 focus:outline-none"
-                    />
+                  <div className="relative">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-white/80">Location / Meeting Point</label>
+                      {deal.status !== "exchange_ready" && (
+                        <button
+                          type="button"
+                          onClick={handleUseCurrentLocation}
+                          disabled={locationLoading}
+                          className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition"
+                        >
+                          {locationLoading ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Detecting GPS...
+                            </>
+                          ) : (
+                            <>
+                              <Crosshair className="h-3.5 w-3.5" /> 🎯 Use Current Location
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative mt-1">
+                      <input
+                        type="text"
+                        value={meetingLocation}
+                        onChange={(e) => {
+                          setMeetingLocation(e.target.value);
+                          setLocationSelected(false);
+                        }}
+                        placeholder="e.g. Indiranagar Metro Station, Sector 62 Noida, Gate 3 Warehouse"
+                        disabled={deal.status === "exchange_ready"}
+                        className="w-full rounded-xl border border-emerald-500/20 bg-[#03110b] p-3 pr-10 text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
+                      />
+                      {locationSearching && (
+                        <div className="absolute right-3 top-3.5 text-white/40">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Autocomplete Recommendations Dropdown */}
+                    {locationSuggestions.length > 0 && deal.status !== "exchange_ready" && (
+                      <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-2xl border border-emerald-500/30 bg-[#04160f] p-1.5 shadow-2xl backdrop-blur-xl">
+                        <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80">
+                          📍 Recommended Locations (Tap to Select)
+                        </div>
+                        {locationSuggestions.map((sug) => (
+                          <button
+                            key={sug.id}
+                            type="button"
+                            onClick={() => selectLocationSuggestion(sug)}
+                            className="flex w-full items-start gap-2 rounded-xl p-2 text-left text-xs text-white/90 transition hover:bg-emerald-500/20 hover:text-white"
+                          >
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            <span className="leading-snug">{sug.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
