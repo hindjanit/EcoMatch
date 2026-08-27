@@ -696,25 +696,105 @@ export default function ProductDetailsPage() {
         </div>
       </div>
 
-      {/* Make Offer Modal */}
+      {/* Make Offer Modal with Interactive Range Slider */}
       {showOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
           <div className="w-full max-w-md rounded-3xl border border-emerald-500/30 bg-[#061d15] p-6 shadow-2xl text-white animate-in fade-in zoom-in-95">
-            <h3 className="text-lg font-bold text-white">
-              {selectedQuantity !== totalQty ? `Offer on ${selectedQuantity} ${product.quantity_unit}` : "Make an Offer"}
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-emerald-400" />
+                {selectedQuantity !== totalQty ? `Offer on ${selectedQuantity} ${product.quantity_unit}` : "Make an Offer"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowOfferModal(false)}
+                className="text-white/60 hover:text-white text-base"
+              >
+                ✕
+              </button>
+            </div>
+
             <p className="mt-1 text-xs text-white/60">
-              Calculated Subtotal: ₹{calculatedSplitPrice.toLocaleString("en-IN")}. Propose your counter-price to the seller.
+              Asking Subtotal: <strong className="text-white">₹{calculatedSplitPrice.toLocaleString("en-IN")}</strong>. Propose your counter-price using the slider or input below.
             </p>
 
-            <div className="mt-5 space-y-3">
-              <label className="text-xs font-bold text-emerald-400">Offer Amount (₹)</label>
-              <input
-                type="number"
-                value={offerPrice}
-                onChange={(e) => setOfferPrice(e.target.value)}
-                className="w-full rounded-2xl border border-emerald-500/30 bg-[#03100b] p-3 text-lg font-bold text-white focus:border-emerald-400 focus:outline-none"
-              />
+            <div className="mt-5 space-y-4">
+              {/* Slider Component */}
+              <div className="rounded-2xl border border-emerald-500/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/60 font-semibold">Offer Amount</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">
+                    ₹{Number(offerPrice || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min={Math.max(1, Math.round(calculatedSplitPrice * 0.3))}
+                  max={Math.round(calculatedSplitPrice * 1.2)}
+                  step={Math.max(1, Math.round(calculatedSplitPrice / 100))}
+                  value={Number(offerPrice) || calculatedSplitPrice}
+                  onChange={(e) => setOfferPrice(e.target.value)}
+                  className="w-full h-2.5 bg-emerald-950 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                />
+
+                <div className="flex justify-between text-[10px] text-white/40 font-mono">
+                  <span>Min: ₹{Math.round(calculatedSplitPrice * 0.3).toLocaleString("en-IN")}</span>
+                  <span>Asking: ₹{calculatedSplitPrice.toLocaleString("en-IN")}</span>
+                  <span>Max: ₹{Math.round(calculatedSplitPrice * 1.2).toLocaleString("en-IN")}</span>
+                </div>
+
+                {/* Quick % Discount Presets */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: "10% OFF", factor: 0.9 },
+                    { label: "15% OFF", factor: 0.85 },
+                    { label: "20% OFF", factor: 0.8 },
+                    { label: "25% OFF", factor: 0.75 },
+                    { label: "Asking", factor: 1.0 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setOfferPrice(String(Math.round(calculatedSplitPrice * preset.factor)))}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20 transition active:scale-95"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dynamic Savings Breakdown */}
+              {Number(offerPrice) > 0 && (
+                <div className="rounded-xl border border-white/10 bg-[#03110b] p-3 text-xs flex items-center justify-between">
+                  <span className="text-white/60">Discount / Savings:</span>
+                  {calculatedSplitPrice - Number(offerPrice) > 0 ? (
+                    <span className="font-bold text-emerald-400">
+                      ₹{(calculatedSplitPrice - Number(offerPrice)).toLocaleString("en-IN")} saved ({Math.round(((calculatedSplitPrice - Number(offerPrice)) / calculatedSplitPrice) * 100)}% off asking)
+                    </span>
+                  ) : calculatedSplitPrice - Number(offerPrice) === 0 ? (
+                    <span className="font-bold text-white/80">At asking price</span>
+                  ) : (
+                    <span className="font-bold text-amber-400">
+                      ₹{(Number(offerPrice) - calculatedSplitPrice).toLocaleString("en-IN")} above asking price
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Direct Input */}
+              <div>
+                <label className="text-[11px] font-semibold text-white/70">Or Enter Exact Amount (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={offerPrice}
+                  onChange={(e) => setOfferPrice(e.target.value)}
+                  placeholder="e.g. 4500"
+                  className="mt-1 w-full rounded-xl border border-emerald-500/30 bg-[#03100b] p-3 text-base font-bold text-white focus:border-emerald-400 focus:outline-none"
+                />
+              </div>
 
               {offerMessage && (
                 <p className="rounded-xl bg-emerald-500/20 p-2.5 text-xs font-semibold text-emerald-300">
@@ -724,14 +804,16 @@ export default function ProductDetailsPage() {
 
               <div className="mt-4 flex gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setShowOfferModal(false)}
                   className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-semibold text-white/70 hover:bg-white/10"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={sendOffer}
-                  disabled={offerLoading}
+                  disabled={offerLoading || !offerPrice || Number(offerPrice) <= 0}
                   className="flex-1 rounded-2xl bg-emerald-400 py-3 text-xs font-black text-[#03140e] shadow-lg hover:bg-emerald-300 disabled:opacity-50"
                 >
                   {offerLoading ? "Sending..." : "Submit Offer"}

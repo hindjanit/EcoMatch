@@ -30,6 +30,8 @@ import {
   RefreshCw,
   Leaf,
   Download,
+  TrendingDown,
+  Sliders,
 } from "lucide-react";
 
 type Deal = {
@@ -144,6 +146,8 @@ export default function DealRoomPage() {
   const [buyerCode, setBuyerCode] = useState("");
   const [qrLibReady, setQrLibReady] = useState(false);
   const [showEsgModal, setShowEsgModal] = useState(false);
+  const [showPriceSlider, setShowPriceSlider] = useState(false);
+  const [counterPrice, setCounterPrice] = useState<number>(0);
   const qrRef = useRef<HTMLDivElement | null>(null);
   const autoCodeAttempted = useRef(false);
   const confettiFired = useRef(false);
@@ -157,6 +161,9 @@ export default function DealRoomPage() {
     setMeetingLocation(deal.meeting_location || "");
     setMeetingLat(deal.meeting_latitude);
     setMeetingLng(deal.meeting_longitude);
+    if (!counterPrice) {
+      setCounterPrice(Number(deal.agreed_price || product?.price || 0));
+    }
 
     if (deal.meeting_at) {
       const d = new Date(deal.meeting_at);
@@ -287,6 +294,27 @@ export default function DealRoomPage() {
     else {
       setMessage(`Deal status updated to ${status.replaceAll("_", " ")}.`);
       await loadDealRoom(true);
+    }
+    setActionLoading(false);
+  }
+
+  async function handleUpdateAgreedPrice() {
+    if (!deal || counterPrice <= 0) return;
+    setActionLoading(true);
+    setError("");
+    setMessage("");
+
+    const { error: priceError } = await supabase
+      .from("deal_requests")
+      .update({ agreed_price: counterPrice, updated_at: new Date().toISOString() })
+      .eq("id", deal.id);
+
+    if (priceError) {
+      setError(`Could not update deal price: ${priceError.message}`);
+    } else {
+      setMessage(`✓ Deal value updated to ₹${counterPrice.toLocaleString("en-IN")}!`);
+      setDeal((prev) => (prev ? { ...prev, agreed_price: counterPrice } : prev));
+      setShowPriceSlider(false);
     }
     setActionLoading(false);
   }
@@ -519,6 +547,17 @@ export default function DealRoomPage() {
                 <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
                   {deal.status.replaceAll("_", " ")}
                 </span>
+                {["requested", "accepted"].includes(deal.status) && (
+                  <button
+                    onClick={() => {
+                      setCounterPrice(effectivePrice);
+                      setShowPriceSlider(true);
+                    }}
+                    className="flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-bold text-sky-300 hover:bg-sky-500/25 transition"
+                  >
+                    <Sliders className="h-3 w-3" /> Offer Slider
+                  </button>
+                )}
                 <button
                   onClick={() => setShowEsgModal(true)}
                   className="flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 hover:bg-emerald-500/25"
@@ -824,6 +863,126 @@ export default function DealRoomPage() {
           </div>
         </div>
       </div>
+
+      {/* Make Offer / Price Counter Slider Modal */}
+      {showPriceSlider && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-3xl border border-emerald-500/30 bg-[#061d15] p-6 shadow-2xl text-white animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sliders className="h-5 w-5 text-sky-400" /> Adjust Deal Price
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPriceSlider(false)}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="mt-1 text-xs text-white/60">
+              Current Deal Rate: <strong className="text-white">₹{effectivePrice.toLocaleString("en-IN")}</strong>. Propose and confirm an updated agreed amount.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl border border-emerald-500/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/60 font-semibold">Updated Offer Price</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">
+                    ₹{Number(counterPrice || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min={Math.max(1, Math.round(effectivePrice * 0.3))}
+                  max={Math.round(effectivePrice * 1.3)}
+                  step={Math.max(1, Math.round(effectivePrice / 100))}
+                  value={Number(counterPrice) || effectivePrice}
+                  onChange={(e) => setCounterPrice(Number(e.target.value))}
+                  className="w-full h-2.5 bg-emerald-950 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                />
+
+                <div className="flex justify-between text-[10px] text-white/40 font-mono">
+                  <span>Min: ₹{Math.round(effectivePrice * 0.3).toLocaleString("en-IN")}</span>
+                  <span>Current: ₹{effectivePrice.toLocaleString("en-IN")}</span>
+                  <span>Max: ₹{Math.round(effectivePrice * 1.3).toLocaleString("en-IN")}</span>
+                </div>
+
+                {/* Quick % presets */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: "5% OFF", factor: 0.95 },
+                    { label: "10% OFF", factor: 0.9 },
+                    { label: "15% OFF", factor: 0.85 },
+                    { label: "20% OFF", factor: 0.8 },
+                    { label: "Current", factor: 1.0 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setCounterPrice(Math.round(effectivePrice * preset.factor))}
+                      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20 transition active:scale-95"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Difference breakdown */}
+              {counterPrice > 0 && (
+                <div className="rounded-xl border border-white/10 bg-[#03110b] p-3 text-xs flex items-center justify-between">
+                  <span className="text-white/60">Adjustment:</span>
+                  {effectivePrice - counterPrice > 0 ? (
+                    <span className="font-bold text-emerald-400">
+                      ₹{(effectivePrice - counterPrice).toLocaleString("en-IN")} lower ({Math.round(((effectivePrice - counterPrice) / effectivePrice) * 100)}% discount)
+                    </span>
+                  ) : effectivePrice === counterPrice ? (
+                    <span className="font-bold text-white/80">Same as current</span>
+                  ) : (
+                    <span className="font-bold text-amber-400">
+                      ₹{(counterPrice - effectivePrice).toLocaleString("en-IN")} higher
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Direct Input */}
+              <div>
+                <label className="text-[11px] font-semibold text-white/70">Or Enter Amount (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={counterPrice || ""}
+                  onChange={(e) => setCounterPrice(Number(e.target.value))}
+                  placeholder="e.g. 5000"
+                  className="mt-1 w-full rounded-xl border border-emerald-500/30 bg-[#03100b] p-3 text-base font-bold text-white focus:border-emerald-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="mt-4 flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPriceSlider(false)}
+                  className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-semibold text-white/70 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateAgreedPrice}
+                  disabled={actionLoading || counterPrice <= 0}
+                  className="flex-1 rounded-2xl bg-emerald-400 py-3 text-xs font-black text-[#03140e] shadow-lg hover:bg-emerald-300 disabled:opacity-50"
+                >
+                  {actionLoading ? "Updating..." : "Update Deal Price"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ESG Certificate Modal */}
       {deal && (

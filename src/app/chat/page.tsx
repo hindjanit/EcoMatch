@@ -11,11 +11,12 @@ import {
   Send,
   MessageSquare,
   ShieldCheck,
-  ShieldAlert,
   ArrowLeft,
-  Handshake,
-  Boxes,
   Lock,
+  MapPin,
+  ExternalLink,
+  Sparkles,
+  Navigation,
 } from "lucide-react";
 
 type Conversation = {
@@ -40,6 +41,38 @@ type Product = {
   price: number;
 };
 
+type SellerProfile = {
+  id: string;
+  full_name: string | null;
+  location_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  verification_status: string | null;
+};
+
+function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadiusKm = 6371;
+  const toRadians = (val: number) => (val * Math.PI) / 180;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+const QUICK_SUGGESTIONS = [
+  "Is this item still available?",
+  "What is your best/final price?",
+  "Where is the exact pickup location?",
+  "Can you share more photos or condition details?",
+  "Can we do an on-site inspection before OTP handover?",
+];
+
 function ChatContent() {
   const supabase = createClient();
   const router = useRouter();
@@ -48,33 +81,72 @@ function ChatContent() {
   const conversationId = searchParams.get("conversation");
   const productId = searchParams.get("product") || searchParams.get("productId");
   const sellerId = searchParams.get("seller") || searchParams.get("sellerId");
+  const inquiry = searchParams.get("inquiry");
 
   const [userId, setUserId] = useState("");
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
+  const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [newMessage, setNewMessage] = useState(inquiry || "");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (inquiry && !newMessage) {
+      setNewMessage(inquiry);
+    }
+  }, [inquiry]);
 
   useEffect(() => {
     initChat();
   }, [conversationId, productId, sellerId]);
 
+  // FIX: Scroll ONLY inside the chat container without scrolling the main window page!
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
-  // Real-time message subscription / polling
+  // Real-time message subscription + polling
   useEffect(() => {
     if (!conversation) return;
+
+    const channel = supabase
+      .channel(`chat-room-${conversation.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            const newMsg = payload.new as Message;
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          }
+        }
+      )
+      .subscribe();
+
     const interval = setInterval(() => {
       loadMessages(conversation.id, true);
-    }, 3000);
-    return () => clearInterval(interval);
+    }, 2500);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [conversation]);
 
   async function initChat() {
@@ -100,43 +172,62 @@ function ChatContent() {
         .from("conversations")
         .select("*")
         .eq("id", Number(conversationId))
-        .single();
+        .maybeSingle();
 
       if (convErr) {
-        setError(convErr.message);
+        setError(`Could not load conversation: ${convErr.message}`);
         setLoading(false);
         return;
       }
       activeConv = data as Conversation;
     } else if (productId && sellerId) {
       const pId = Number(productId);
-      const { data: existing } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("product_id", pId)
-        .eq("buyer_id", user.id)
-        .eq("seller_id", sellerId)
-        .maybeSingle();
 
-      if (existing) {
-        activeConv = existing as Conversation;
-      } else {
-        const { data: newConv, error: createErr } = await supabase
+      if (user.id === sellerId) {
+        const { data: sellerConvs } = await supabase
           .from("conversations")
-          .insert({
-            product_id: pId,
-            buyer_id: user.id,
-            seller_id: sellerId,
-          })
           .select("*")
-          .single();
+          .eq("product_id", pId)
+          .eq("seller_id", user.id)
+          .order("created_at", { ascending: false });
 
-        if (createErr) {
-          setError(createErr.message);
+        if (sellerConvs && sellerConvs.length > 0) {
+          activeConv = sellerConvs[0] as Conversation;
+        } else {
+          setError("You are the seller of this product. No buyer conversations have been started for this lot yet.");
           setLoading(false);
           return;
         }
-        activeConv = newConv as Conversation;
+      } else {
+        const { data: existing } = await supabase
+          .from("conversations")
+          .select("*")
+          .eq("product_id", pId)
+          .eq("buyer_id", user.id)
+          .eq("seller_id", sellerId)
+          .maybeSingle();
+
+        if (existing) {
+          activeConv = existing as Conversation;
+        } else {
+          const { data: newConv, error: createErr } = await supabase
+            .from("conversations")
+            .insert({
+              product_id: pId,
+              buyer_id: user.id,
+              seller_id: sellerId,
+            })
+            .select("*")
+            .single();
+
+          if (createErr) {
+            console.error("Conversation creation error:", createErr);
+            setError(`Could not start conversation: ${createErr.message}`);
+            setLoading(false);
+            return;
+          }
+          activeConv = newConv as Conversation;
+        }
       }
     }
 
@@ -153,98 +244,283 @@ function ChatContent() {
       .from("products")
       .select("id, title, category, price")
       .eq("id", activeConv.product_id)
-      .single();
+      .maybeSingle();
 
     if (prodData) setProduct(prodData as Product);
+
+    // Fetch seller profile for location and distance
+    const { data: sellerData } = await supabase
+      .from("profiles")
+      .select("id, full_name, location_name, latitude, longitude, verification_status")
+      .eq("id", activeConv.seller_id)
+      .maybeSingle();
+
+    if (sellerData) {
+      setSeller(sellerData as SellerProfile);
+
+      // Fetch buyer profile for distance comparison
+      const { data: buyerData } = await supabase
+        .from("profiles")
+        .select("latitude, longitude")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (
+        buyerData?.latitude &&
+        buyerData?.longitude &&
+        sellerData.latitude &&
+        sellerData.longitude
+      ) {
+        const dist = calculateDistanceKm(
+          buyerData.latitude,
+          buyerData.longitude,
+          sellerData.latitude,
+          sellerData.longitude
+        );
+        setDistanceKm(dist);
+      } else if (sellerData.latitude && sellerData.longitude && navigator.geolocation) {
+        // Live browser fallback
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const dist = calculateDistanceKm(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              sellerData.latitude!,
+              sellerData.longitude!
+            );
+            setDistanceKm(dist);
+          },
+          () => {}
+        );
+      }
+    }
 
     await loadMessages(activeConv.id, false);
     setLoading(false);
   }
 
   async function loadMessages(cId: number, quiet = false) {
-    const { data, error: msgErr } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", cId)
-      .order("created_at", { ascending: true });
+    try {
+      const { data, error: msgErr } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", cId)
+        .order("created_at", { ascending: true });
 
-    if (!msgErr && data) {
-      setMessages(data as Message[]);
+      if (!msgErr && data) {
+        setMessages((prev) => {
+          const map = new Map<number, Message>();
+          prev.forEach((m) => map.set(m.id, m));
+          (data as Message[]).forEach((m) => map.set(m.id, m));
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        });
+      } else if (msgErr && !quiet) {
+        console.error("Message load error:", msgErr);
+      }
+    } catch (e) {
+      if (!quiet) console.error("loadMessages exception:", e);
     }
   }
 
-  async function handleSendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newMessage.trim() || !conversation || sending) return;
+  async function handleSendMessage(e?: React.FormEvent, directText?: string) {
+    if (e) e.preventDefault();
+    const textToSend = (directText !== undefined ? directText : newMessage).trim();
+    if (!textToSend || !conversation || sending) return;
 
+    setError("");
     setSending(true);
-    const content = newMessage.trim();
-    setNewMessage("");
+    if (!directText) setNewMessage("");
 
-    const { error: sendErr } = await supabase.from("messages").insert({
+    // 1. Heuristic safety moderation
+    try {
+      const modRes = await fetch("/api/chat/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: textToSend }),
+      });
+      const modData = await modRes.json();
+      if (modData?.suspicious) {
+        setError(`⚠️ Message blocked: ${modData.reason}. Keep all communication and handovers inside EcoMatch.`);
+        if (!directText) setNewMessage(textToSend);
+        setSending(false);
+        return;
+      }
+    } catch (modError) {
+      console.warn("Moderation check error:", modError);
+    }
+
+    // 2. Try send_safe_message RPC
+    let inserted = false;
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("send_safe_message", {
+        p_conversation_id: conversation.id,
+        p_message: textToSend,
+      });
+
+      if (!rpcErr && rpcData) {
+        if (rpcData.allowed === false) {
+          setError(`⚠️ ${rpcData.reason || "Message not allowed."} ${rpcData.warning || ""}`);
+          if (!directText) setNewMessage(textToSend);
+          setSending(false);
+          return;
+        }
+        inserted = true;
+      }
+    } catch (rpcErr) {
+      console.warn("RPC send_safe_message fallback:", rpcErr);
+    }
+
+    // 3. Fallback direct insert
+    if (!inserted) {
+      const { error: sendErr } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversation.id,
+          sender_id: userId,
+          message: textToSend,
+        });
+
+      if (sendErr) {
+        console.error("Message send error:", sendErr);
+        setError(`Failed to send message: ${sendErr.message}`);
+        if (!directText) setNewMessage(textToSend);
+        setSending(false);
+        return;
+      }
+    }
+
+    // Optimistically update message list
+    const optimisticMsg: Message = {
+      id: Date.now(),
       conversation_id: conversation.id,
       sender_id: userId,
-      message: content,
-    });
+      message: textToSend,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
 
-    if (sendErr) {
-      setError(sendErr.message);
-    } else {
-      await loadMessages(conversation.id, true);
-    }
+    await loadMessages(conversation.id, true);
     setSending(false);
   }
+
+  const mapSearchQuery = seller?.latitude && seller?.longitude
+    ? `${seller.latitude},${seller.longitude}`
+    : seller?.location_name
+    ? seller.location_name
+    : null;
+
+  const googleMapsUrl = mapSearchQuery
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery)}`
+    : null;
 
   return (
     <div className="relative mx-auto max-w-4xl px-4 pt-28 sm:px-6">
       {/* Top Chat Bar */}
-      <div className="flex items-center justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/90 p-4 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/chat/inbox"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
-                {product?.category || "Material"}
-              </span>
-              <h2 className="font-bold text-white text-sm sm:text-base">
-                {product?.title || "Material Discussion"}
-              </h2>
+      <div className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/90 p-4 shadow-xl backdrop-blur-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/chat/inbox"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
+                  {product?.category || "Material"}
+                </span>
+                <h2 className="font-bold text-white text-sm sm:text-base">
+                  {product?.title || "Material Discussion"}
+                </h2>
+              </div>
+              {product?.price !== undefined && (
+                <p className="text-xs text-emerald-400 font-semibold">
+                  Listed Price: ₹{product.price.toLocaleString("en-IN")}
+                </p>
+              )}
             </div>
-            {product?.price && (
-              <p className="text-xs text-emerald-400 font-semibold">
-                Listed Price: ₹{product.price.toLocaleString("en-IN")}
-              </p>
-            )}
           </div>
+
+          {product?.id && (
+            <Link
+              href={`/product/${product.id}`}
+              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20"
+            >
+              View Product
+            </Link>
+          )}
         </div>
 
-        {product?.id && (
-          <Link
-            href={`/product/${product.id}`}
-            className="hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 sm:block"
-          >
-            View Product
-          </Link>
+        {/* Seller Location & Distance Bar */}
+        {(seller?.location_name || distanceKm !== null) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2.5 text-xs">
+            <div className="flex items-center gap-2 text-white/70">
+              <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span>
+                Seller Location:{" "}
+                <strong className="text-white">
+                  {seller?.location_name || "Configured Seller Area"}
+                </strong>
+              </span>
+              {distanceKm !== null && (
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  📍 {distanceKm < 1 ? "< 1 km away" : `${distanceKm.toFixed(1)} km away`}
+                </span>
+              )}
+            </div>
+
+            {googleMapsUrl && (
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-bold text-sky-300 hover:bg-sky-500/20 transition"
+              >
+                <Navigation className="h-3 w-3" /> View on Map <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+          </div>
         )}
       </div>
 
       {/* Fraud & Safe Exchange Alert */}
       <div className="mt-3 flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-[#03140e]/60 px-4 py-2 text-[11px] text-white/50">
-        <Lock className="h-3.5 w-3.5 text-emerald-400" />
+        <Lock className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
         <span>For your security, always complete handovers through the verified OTP Deal Room.</span>
       </div>
 
+      {/* Error Alert Banner */}
+      {error && (
+        <div className="mt-3 flex items-center justify-between rounded-2xl border border-amber-500/40 bg-amber-950/40 px-4 py-3 text-xs font-semibold text-amber-300">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="ml-3 text-amber-300 hover:text-white font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Messages Scroll Box */}
-      <div className="mt-4 flex h-[480px] flex-col justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-2xl backdrop-blur-2xl">
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-          {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-center text-xs text-white/40">
-              Start the discussion! Inquire about volume, pickup logistics or price negotiation.
+      <div className="mt-4 flex h-[460px] flex-col justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto space-y-3 pr-2 scroll-smooth"
+        >
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-xs text-white/50">
+              Loading messages...
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center text-xs text-white/40 space-y-2">
+              <MessageSquare className="h-8 w-8 text-emerald-500/30" />
+              <p>Start the discussion! Inquire about volume, pickup logistics or price negotiation.</p>
+              <p className="text-[11px] text-emerald-400/70">Or tap any suggestion below to send instantly.</p>
             </div>
           ) : (
             messages.map((msg) => {
@@ -273,11 +549,30 @@ function ChatContent() {
               );
             })
           )}
-          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick Message Suggestions Chips */}
+        <div className="mt-3 border-t border-white/10 pt-2.5">
+          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80 mb-1.5">
+            <Sparkles className="h-3 w-3" /> Quick Suggestions (Tap to send)
+          </div>
+          <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+            {QUICK_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => handleSendMessage(undefined, suggestion)}
+                disabled={sending}
+                className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-white/80 transition hover:border-emerald-400/60 hover:bg-emerald-500/15 hover:text-white active:scale-95 disabled:opacity-50"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSendMessage} className="mt-4 flex items-center gap-2 pt-2 border-t border-white/10">
+        <form onSubmit={(e) => handleSendMessage(e)} className="mt-2 flex items-center gap-2 pt-1">
           <input
             type="text"
             value={newMessage}
