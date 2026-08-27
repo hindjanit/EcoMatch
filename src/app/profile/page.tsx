@@ -212,15 +212,15 @@ export default function ProfilePage() {
 
               {!verified && (
                 <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-950/30 p-4">
-                  <h4 className="text-xs font-bold text-amber-300">Unlock Full Trading Limits</h4>
+                  <h4 className="text-xs font-bold text-amber-300">Unlock Full Buy & Sell Limits</h4>
                   <p className="mt-1 text-xs text-white/60">
-                    Unverified accounts can post up to 30 listings with a ₹10,000 cap. Complete quick paperless UIDAI verification to post up to 300 listings with no price cap.
+                    Unverified accounts can post up to 30 listings under ₹1,000. To buy or sell products above ₹1,000, complete quick paperless Aadhaar verification to unlock up to 300 listings with no price cap.
                   </p>
                   <Link
                     href="/verify-identity"
                     className="mt-3 inline-flex items-center gap-1 rounded-xl bg-amber-400 px-4 py-2 text-xs font-black text-[#03140e] hover:bg-amber-300"
                   >
-                    Verify Identity Now <ChevronRight className="h-3.5 w-3.5" />
+                    Verify Aadhaar Identity <ChevronRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               )}

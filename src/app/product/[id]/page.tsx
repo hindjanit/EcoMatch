@@ -190,6 +190,22 @@ export default function ProductDetailsPage() {
       return;
     }
 
+    // Gate: Aadhaar Verification required to buy products above ₹1,000
+    if (Number(product.price) > 1000) {
+      const { data: buyerProfile } = await supabase
+        .from("profiles")
+        .select("verification_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (buyerProfile?.verification_status !== "verified") {
+        setDealMessage("⚠️ Aadhaar Identity Verification is required to buy products above ₹1,000. Redirecting to verification...");
+        setDealLoading(false);
+        setTimeout(() => router.push("/verify-identity"), 1200);
+        return;
+      }
+    }
+
     const { data: existing } = await supabase
       .from("deal_requests")
       .select("id,deal_code,status")
@@ -256,6 +272,22 @@ export default function ProductDetailsPage() {
       setOfferMessage("You cannot make an offer on your own listing.");
       setOfferLoading(false);
       return;
+    }
+
+    // Gate: Aadhaar Verification required to make offers above ₹1,000
+    if (amount > 1000) {
+      const { data: buyerProfile } = await supabase
+        .from("profiles")
+        .select("verification_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (buyerProfile?.verification_status !== "verified") {
+        setOfferMessage("⚠️ Aadhaar Identity Verification is required to make offers above ₹1,000. Redirecting to verification...");
+        setOfferLoading(false);
+        setTimeout(() => router.push("/verify-identity"), 1200);
+        return;
+      }
     }
 
     const { error: offerError } = await supabase.from("product_offers").insert({

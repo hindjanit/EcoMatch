@@ -783,10 +783,10 @@ export default function AddProductPage() {
       }
 
       if (!isIdentityVerified) {
-        if (Number(price) > 10000) {
+        if (Number(price) > 1000) {
           setLoading(false);
           setError(
-            "Identity Verification is required to list products above ₹10,000.",
+            "Aadhaar Identity Verification is required to list products above ₹1,000.",
           );
           window.setTimeout(() => router.push("/verify-identity"), 1200);
           return;
@@ -795,7 +795,7 @@ export default function AddProductPage() {
         if ((activeCount || 0) >= 30) {
           setLoading(false);
           setError(
-            "Unverified accounts can keep up to 30 active listings. Verify your identity to unlock up to 300 listings.",
+            "Unverified accounts can keep up to 30 active listings under ₹1,000. Verify with Aadhaar to unlock up to 300 listings with no price cap.",
           );
           return;
         }

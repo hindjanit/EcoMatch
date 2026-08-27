@@ -250,7 +250,7 @@ export default function VerifyIdentityPage() {
             </div>
             <h2 className="mt-4 text-2xl font-black text-white">Identity Verified Successfully</h2>
             <p className="mt-2 text-xs text-white/60">
-              ₹10,000 listing restriction and 30-post caps have been lifted. You can now post up to 300 listings with no price cap.
+              ₹1,000 buy/sell restrictions and 30-post caps have been lifted. You can now buy and post listings with up to 300 active lots and no price cap.
             </p>
             <Link
               href="/profile"

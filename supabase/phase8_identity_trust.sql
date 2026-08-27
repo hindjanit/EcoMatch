@@ -94,7 +94,7 @@ begin
   select coalesce(verification_status,'unverified') into v_status from profiles where id=new.seller_id;
   v_status := coalesce(v_status,'unverified');
   if v_status <> 'verified' then
-    if coalesce(new.price,0) > 10000 then raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 10000 require EcoMatch Identity Verification.'; end if;
+    if coalesce(new.price,0) > 1000 then raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 1000 require EcoMatch Aadhaar Identity Verification.'; end if;
     select count(*) into v_active_count from products where seller_id=new.seller_id and status in ('pending','approved');
     if v_active_count >= 30 then raise exception 'UNVERIFIED_ACTIVE_LIMIT: Unverified accounts can have at most 30 active listings.'; end if;
   else

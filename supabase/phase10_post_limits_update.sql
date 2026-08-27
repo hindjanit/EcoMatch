@@ -1,4 +1,4 @@
-﻿-- EcoMatch Phase 10 — Update Listing Limits & Caps
+-- EcoMatch Phase 10 — Update Listing Limits & Caps
 -- Unverified accounts: <= Rs 10,000 price cap, <= 30 active listings.
 -- Verified accounts: <= 300 active listings, unlimited price.
 
@@ -20,9 +20,9 @@ begin
   v_status := coalesce(v_status, 'unverified');
 
   if v_status <> 'verified' then
-    -- Price limit for unverified sellers: Rs 10,000
-    if coalesce(new.price, 0) > 10000 then
-      raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 10,000 require EcoMatch Identity Verification.';
+    -- Price limit for unverified sellers: Rs 1,000
+    if coalesce(new.price, 0) > 1000 then
+      raise exception 'IDENTITY_VERIFICATION_REQUIRED: Listings above Rs 1,000 require EcoMatch Aadhaar Identity Verification.';
     end if;
 
     -- Active listings limit for unverified sellers: 30
