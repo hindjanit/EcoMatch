@@ -32,7 +32,25 @@ import {
   Leaf,
   Scan,
   Download,
+  MapPin,
+  Navigation,
+  ExternalLink,
 } from "lucide-react";
+
+function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadiusKm = 6371;
+  const toRadians = (val: number) => (val * Math.PI) / 180;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
 
 type Product = {
   id: string;
@@ -104,7 +122,11 @@ export default function ProductDetailsPage() {
     verification_status?: string;
     trust_score?: number;
     full_name?: string;
+    location_name?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   } | null>(null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   useEffect(() => {
     if (productId) {
@@ -134,11 +156,62 @@ export default function ProductDetailsPage() {
 
     const { data: sellerData } = await supabase
       .from("profiles")
-      .select("verification_status, trust_score, full_name")
+      .select("verification_status, trust_score, full_name, location_name, latitude, longitude")
       .eq("id", productData.seller_id)
       .maybeSingle();
 
-    setSellerTrust(sellerData || null);
+    if (sellerData) {
+      setSellerTrust(sellerData);
+
+      // Fetch current logged in user coords to calculate distance
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: buyerData } = await supabase
+          .from("profiles")
+          .select("latitude, longitude")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (buyerData?.latitude && buyerData?.longitude && sellerData.latitude && sellerData.longitude) {
+          const dist = calculateDistanceKm(
+            buyerData.latitude,
+            buyerData.longitude,
+            sellerData.latitude,
+            sellerData.longitude
+          );
+          setDistanceKm(dist);
+        } else if (sellerData.latitude && sellerData.longitude && typeof navigator !== "undefined" && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const dist = calculateDistanceKm(
+                pos.coords.latitude,
+                pos.coords.longitude,
+                sellerData.latitude!,
+                sellerData.longitude!
+              );
+              setDistanceKm(dist);
+            },
+            () => {}
+          );
+        }
+      } else if (sellerData.latitude && sellerData.longitude && typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const dist = calculateDistanceKm(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              sellerData.latitude!,
+              sellerData.longitude!
+            );
+            setDistanceKm(dist);
+          },
+          () => {}
+        );
+      }
+    }
 
     if ((productData as Product).is_negotiable) {
       setOfferPrice(
@@ -561,6 +634,38 @@ export default function ProductDetailsPage() {
                 Unit Base Rate: ₹{Math.round(unitRate).toLocaleString("en-IN")} / {product.quantity_unit || "unit"}
               </p>
 
+              {/* Seller Location & Distance Bar */}
+              {(sellerTrust?.location_name || distanceKm !== null) && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-[#03150e]/90 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-white/80">
+                    <MapPin className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span className="truncate max-w-[180px] sm:max-w-[220px]">
+                      {sellerTrust?.location_name || "Verified Location"}
+                    </span>
+                    {distanceKm !== null && (
+                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300 shrink-0">
+                        📍 {distanceKm < 1 ? "< 1 km away" : `${distanceKm.toFixed(1)} km away`}
+                      </span>
+                    )}
+                  </div>
+
+                  {(sellerTrust?.latitude && sellerTrust?.longitude || sellerTrust?.location_name) && (
+                    <a
+                      href={
+                        sellerTrust?.latitude && sellerTrust?.longitude
+                          ? `https://www.google.com/maps/search/?api=1&query=${sellerTrust.latitude},${sellerTrust.longitude}`
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sellerTrust?.location_name || "India")}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-bold text-sky-300 hover:bg-sky-500/20 transition shrink-0"
+                    >
+                      <Navigation className="h-3 w-3" /> View Map <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* ======================================================= */}
               {/* PARTIAL LOT SPLITTER & DYNAMIC QUANTITY CALCULATOR */}
               {/* ======================================================= */}
@@ -691,6 +796,10 @@ export default function ProductDetailsPage() {
               sellerName={sellerTrust?.full_name}
               verificationStatus={sellerTrust?.verification_status}
               trustScore={sellerTrust?.trust_score}
+              locationName={sellerTrust?.location_name}
+              latitude={sellerTrust?.latitude}
+              longitude={sellerTrust?.longitude}
+              distanceKm={distanceKm}
             />
           </div>
         </div>

@@ -65,12 +65,20 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   return earthRadiusKm * c;
 }
 
-const QUICK_SUGGESTIONS = [
+const BUYER_SUGGESTIONS = [
   "Is this item still available?",
   "What is your best/final price?",
   "Where is the exact pickup location?",
   "Can you share more photos or condition details?",
   "Can we do an on-site inspection before OTP handover?",
+];
+
+const SELLER_SUGGESTIONS = [
+  "Yes, the item is available and ready for pickup!",
+  "Price is fair & fixed as mentioned in the listing.",
+  "Let's create a Deal Room to lock in the handover schedule.",
+  "When are you available to inspect & pick up?",
+  "Yes, physical inspection is welcome before OTP release.",
 ];
 
 function ChatContent() {
@@ -95,6 +103,11 @@ function ChatContent() {
   const [error, setError] = useState("");
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isNearBottomRef = useRef(true);
+  const initialScrollDone = useRef(false);
+
+  const isSeller = Boolean(conversation && userId && conversation.seller_id === userId);
+  const activeSuggestions = isSeller ? SELLER_SUGGESTIONS : BUYER_SUGGESTIONS;
 
   useEffect(() => {
     if (inquiry && !newMessage) {
@@ -106,12 +119,24 @@ function ChatContent() {
     initChat();
   }, [conversationId, productId, sellerId]);
 
-  // FIX: Scroll ONLY inside the chat container without scrolling the main window page!
+  // SMART SCROLL: Only auto-scroll down if user was ALREADY at the bottom or on initial load
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    if (!scrollContainerRef.current) return;
+    if (!initialScrollDone.current && messages.length > 0) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      initialScrollDone.current = true;
+    } else if (isNearBottomRef.current) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
+    // If user scrolled up to read past messages, do not force scroll down!
   }, [messages]);
+
+  function handleContainerScroll() {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Consider at bottom if within 80px of bottom
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 80;
+  }
 
   // Real-time message subscription + polling
   useEffect(() => {
@@ -279,7 +304,6 @@ function ChatContent() {
         );
         setDistanceKm(dist);
       } else if (sellerData.latitude && sellerData.longitude && navigator.geolocation) {
-        // Live browser fallback
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const dist = calculateDistanceKm(
@@ -308,13 +332,17 @@ function ChatContent() {
         .order("created_at", { ascending: true });
 
       if (!msgErr && data) {
+        const fetched = data as Message[];
         setMessages((prev) => {
-          const map = new Map<number, Message>();
-          prev.forEach((m) => map.set(m.id, m));
-          (data as Message[]).forEach((m) => map.set(m.id, m));
-          return Array.from(map.values()).sort(
-            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
+          // If message count and last ID are same, return prev to prevent re-render scroll trigger!
+          if (
+            prev.length === fetched.length &&
+            prev.length > 0 &&
+            prev[prev.length - 1]?.id === fetched[fetched.length - 1]?.id
+          ) {
+            return prev;
+          }
+          return fetched;
         });
       } else if (msgErr && !quiet) {
         console.error("Message load error:", msgErr);
@@ -391,17 +419,12 @@ function ChatContent() {
       }
     }
 
-    // Optimistically update message list
-    const optimisticMsg: Message = {
-      id: Date.now(),
-      conversation_id: conversation.id,
-      sender_id: userId,
-      message: textToSend,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimisticMsg]);
-
+    // Explicit send: force user to bottom to see their new message
+    isNearBottomRef.current = true;
     await loadMessages(conversation.id, true);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
     setSending(false);
   }
 
@@ -510,6 +533,7 @@ function ChatContent() {
       <div className="mt-4 flex h-[460px] flex-col justify-between rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
         <div
           ref={scrollContainerRef}
+          onScroll={handleContainerScroll}
           className="flex-1 overflow-y-auto space-y-3 pr-2 scroll-smooth"
         >
           {loading ? (
@@ -551,13 +575,16 @@ function ChatContent() {
           )}
         </div>
 
-        {/* Quick Message Suggestions Chips */}
+        {/* Dynamic Quick Message Suggestions Chips (Buyer vs Seller Role-Aware) */}
         <div className="mt-3 border-t border-white/10 pt-2.5">
-          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80 mb-1.5">
-            <Sparkles className="h-3 w-3" /> Quick Suggestions (Tap to send)
+          <div className="flex items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80 mb-1.5">
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> {isSeller ? "Seller Quick Replies" : "Buyer Quick Inquiries"}
+            </span>
+            <span className="text-[9px] text-white/40 lowercase">tap to send</span>
           </div>
           <div className="flex flex-nowrap gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
-            {QUICK_SUGGESTIONS.map((suggestion) => (
+            {activeSuggestions.map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"
@@ -577,7 +604,7 @@ function ChatContent() {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={isSeller ? "Reply to buyer..." : "Type your message..."}
             className="flex-1 rounded-2xl border border-emerald-500/20 bg-[#03110b] px-4 py-3 text-xs text-white placeholder:text-white/30 focus:border-emerald-400 focus:outline-none"
           />
           <button
