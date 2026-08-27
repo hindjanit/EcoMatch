@@ -10,6 +10,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import ESGCertificateModal from "@/components/ESGCertificateModal";
+import DealRoomCallWidget from "@/components/DealRoomCallWidget";
 import {
   Handshake,
   CheckCircle2,
@@ -373,6 +374,11 @@ export default function DealRoomPage() {
     setBuyer(profiles.find((p) => p.id === current.buyer_id) || null);
     setSeller(profiles.find((p) => p.id === current.seller_id) || null);
 
+    // If OTP was already verified but status was not yet marked completed, auto-finalize!
+    if (current.exchange_code_verified_at && current.status !== "completed") {
+      confirmHandover();
+    }
+
     if (!quiet) setLoading(false);
   }
 
@@ -514,7 +520,12 @@ export default function DealRoomPage() {
     });
 
     if (rpcError || !data) {
-      setError(rpcError?.message || "Could not generate exchange code.");
+      const errText = rpcError?.message || "";
+      if (errText.toLowerCase().includes("already verified") || deal.exchange_code_verified_at) {
+        confirmHandover();
+      } else {
+        setError(errText || "Could not generate exchange code.");
+      }
     } else {
       setGeneratedCode(String(data));
       setMessage("✓ 6-digit OTP and QR code ready for physical handover.");
@@ -543,7 +554,13 @@ export default function DealRoomPage() {
     else if (!data) setError("Invalid or expired OTP code.");
     else {
       setBuyerCode("");
-      setMessage("✓ OTP verified successfully! Both parties can now confirm physical handover.");
+      setMessage("🎉 OTP verified successfully! Material ownership permanently transferred and recorded in ledger.");
+      confetti({
+        particleCount: 150,
+        spread: 85,
+        origin: { y: 0.6 },
+        colors: ["#10b981", "#34d399", "#a7f3d0", "#ffffff"],
+      });
       await loadDealRoom(true);
     }
     setActionLoading(false);
@@ -670,6 +687,16 @@ export default function DealRoomPage() {
                 <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
                   {deal.status.replaceAll("_", " ")}
                 </span>
+                {["accepted", "meeting_planned", "exchange_ready"].includes(deal.status) && (
+                  <DealRoomCallWidget
+                    dealId={deal.id}
+                    dealCode={deal.deal_code}
+                    userId={userId}
+                    counterpartyId={isBuyer ? deal.seller_id : deal.buyer_id}
+                    counterpartyName={isBuyer ? (seller?.full_name || "Seller") : (buyer?.full_name || "Buyer")}
+                    isBuyer={isBuyer}
+                  />
+                )}
                 {["requested", "accepted"].includes(deal.status) && (
                   <button
                     onClick={() => {

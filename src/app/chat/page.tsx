@@ -361,30 +361,48 @@ function ChatContent() {
     setSending(true);
     if (!directText) setNewMessage("");
 
-    // 1. Heuristic safety moderation
+    // 1. Collect recent messages from current user in this chat to detect multi-message split digit sharing
+    const myRecentMessages = messages
+      .filter((m) => m.sender_id === userId)
+      .slice(-6)
+      .map((m) => m.message);
+
+    // 2. Comprehensive safety moderation check (Local + AI)
+    let isSuspicious = false;
+    let suspicionReason = "";
     try {
       const modRes = await fetch("/api/chat/moderate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: textToSend }),
+        body: JSON.stringify({
+          message: textToSend,
+          recentMessages: myRecentMessages,
+        }),
       });
       const modData = await modRes.json();
       if (modData?.suspicious) {
-        setError(`⚠️ Message blocked: ${modData.reason}. Keep all communication and handovers inside EcoMatch.`);
-        if (!directText) setNewMessage(textToSend);
-        setSending(false);
-        return;
+        isSuspicious = true;
+        suspicionReason = modData.reason || "Sharing external contact details is not allowed.";
       }
     } catch (modError) {
       console.warn("Moderation check error:", modError);
     }
 
-    // 2. Try send_safe_message RPC
+    if (isSuspicious) {
+      setError(`⚠️ Message blocked: ${suspicionReason}. For your security, phone numbers, emails, Instagram IDs, and external links cannot be shared.`);
+      if (!directText) setNewMessage(textToSend);
+      setSending(false);
+      return;
+    }
+
+    // 3. Try send_safe_message RPC
     let inserted = false;
     try {
       const { data: rpcData, error: rpcErr } = await supabase.rpc("send_safe_message", {
         p_conversation_id: conversation.id,
         p_message: textToSend,
+        p_ai_flag: isSuspicious,
+        p_ai_reason: suspicionReason || null,
       });
 
       if (!rpcErr && rpcData) {
@@ -400,7 +418,7 @@ function ChatContent() {
       console.warn("RPC send_safe_message fallback:", rpcErr);
     }
 
-    // 3. Fallback direct insert
+    // 4. Fallback direct insert
     if (!inserted) {
       const { error: sendErr } = await supabase
         .from("messages")
