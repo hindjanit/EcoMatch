@@ -73,6 +73,10 @@ export default function DealRoomCallWidget({
   const audioContextRef = useRef<AudioContext | null>(null);
   const recordingStartedRef = useRef(false);
 
+  // Ringtone generator refs
+  const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ringtoneCtxRef = useRef<AudioContext | null>(null);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -94,11 +98,13 @@ export default function DealRoomCallWidget({
         if (payload.targetId === userId) {
           pendingOfferRef.current = payload.offer;
           setCallState("incoming");
+          startIncomingRingtone();
         }
       })
       .on("broadcast", { event: "CALL_ANSWER" }, async ({ payload }) => {
         if (payload.targetId === userId && peerConnectionRef.current) {
           try {
+            stopRingtone();
             await peerConnectionRef.current.setRemoteDescription(
               new RTCSessionDescription(payload.answer)
             );
@@ -205,6 +211,116 @@ export default function DealRoomCallWidget({
     }
   }
 
+  // =========================================================================
+  // RINGTONE & RINGBACK AUDIO SYNTHESIZER
+  // =========================================================================
+  function startOutgoingRingbackTone() {
+    stopRingtone();
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      ringtoneCtxRef.current = ctx;
+
+      const playToneBeep = () => {
+        if (!ctx || ctx.state === "closed") return;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+        const now = ctx.currentTime;
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        // US standard dial/ringback tone: 440Hz + 480Hz
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(440, now);
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(480, now);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+        gain.gain.setValueAtTime(0.08, now + 1.2);
+        gain.gain.linearRampToValueAtTime(0, now + 1.3);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 1.35);
+        osc2.stop(now + 1.35);
+      };
+
+      playToneBeep();
+      ringtoneIntervalRef.current = setInterval(playToneBeep, 3500);
+    } catch (e) {
+      console.warn("Could not start ringback tone:", e);
+    }
+  }
+
+  function startIncomingRingtone() {
+    stopRingtone();
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      ringtoneCtxRef.current = ctx;
+
+      const playMelodyChime = () => {
+        if (!ctx || ctx.state === "closed") return;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+        const now = ctx.currentTime;
+        const notes = [
+          { f: 587.33, t: 0 },    // D5
+          { f: 783.99, t: 0.14 }, // G5
+          { f: 880.00, t: 0.28 }, // A5
+          { f: 1046.50, t: 0.42 },// C6
+        ];
+
+        notes.forEach(({ f, t }) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(f, now + t);
+
+          gain.gain.setValueAtTime(0, now + t);
+          gain.gain.linearRampToValueAtTime(0.12, now + t + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.38);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now + t);
+          osc.stop(now + t + 0.42);
+        });
+      };
+
+      playMelodyChime();
+      ringtoneIntervalRef.current = setInterval(playMelodyChime, 2400);
+    } catch (e) {
+      console.warn("Could not start incoming ringtone:", e);
+    }
+  }
+
+  function stopRingtone() {
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringtoneCtxRef.current) {
+      ringtoneCtxRef.current.close().catch(() => {});
+      ringtoneCtxRef.current = null;
+    }
+  }
+
   // Setup Peer Connection
   async function createPeerConnection(): Promise<RTCPeerConnection> {
     const pc = new RTCPeerConnection(ICE_SERVERS);
@@ -267,6 +383,7 @@ export default function DealRoomCallWidget({
     try {
       setCallStatusMsg("Accessing secure microphone...");
       setCallState("calling");
+      startOutgoingRingbackTone();
 
       // Unlock AudioContext on user interaction
       const AudioCtx =
@@ -302,6 +419,7 @@ export default function DealRoomCallWidget({
       setCallStatusMsg(`Ringing ${counterpartyName}...`);
     } catch (err) {
       console.error("Start call error:", err);
+      stopRingtone();
       setCallStatusMsg("Microphone permission required for secure call.");
       setTimeout(() => setCallState("idle"), 3000);
     }
@@ -310,6 +428,7 @@ export default function DealRoomCallWidget({
   // 2. ACCEPT INCOMING CALL
   async function acceptCall() {
     try {
+      stopRingtone();
       setCallStatusMsg("Connecting audio stream...");
 
       // Unlock AudioContext on user click
@@ -350,12 +469,14 @@ export default function DealRoomCallWidget({
       }
     } catch (err) {
       console.error("Accept call error:", err);
+      stopRingtone();
       handleEndCall();
     }
   }
 
   // 3. DECLINE INCOMING CALL
   function declineCall() {
+    stopRingtone();
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -485,6 +606,7 @@ export default function DealRoomCallWidget({
   }
 
   function endCallCleanup() {
+    stopRingtone();
     stopCallTimer();
     recordingStartedRef.current = false;
     iceCandidatesQueueRef.current = [];
@@ -548,7 +670,10 @@ export default function DealRoomCallWidget({
             </div>
 
             <h3 className="mt-4 text-lg font-black text-white">Calling {counterpartyName}...</h3>
-            <p className="mt-1 text-xs text-sky-300/80">{callStatusMsg || "Deal Room Encrypted Audio"}</p>
+            <div className="mt-1 flex items-center justify-center gap-1.5 text-xs text-sky-300 font-mono">
+              <Volume2 className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
+              <span>Ringtone Active • {callStatusMsg || "Ringing..."}</span>
+            </div>
 
             <div className="mt-4 flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 py-1 px-3 text-[10px] font-bold text-emerald-400">
               <ShieldCheck className="h-3 w-3" />
@@ -582,6 +707,11 @@ export default function DealRoomCallWidget({
 
             <h3 className="mt-2 text-xl font-black text-white">{counterpartyName}</h3>
             <p className="mt-1 text-xs text-white/60">Deal Code: #{dealCode}</p>
+
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-emerald-400 font-mono">
+              <Volume2 className="h-3.5 w-3.5 animate-bounce" />
+              <span>Ringing • Handover Request</span>
+            </div>
 
             <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400">
               <Disc3 className="h-3.5 w-3.5 animate-spin" />
