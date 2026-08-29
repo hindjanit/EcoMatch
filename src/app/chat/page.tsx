@@ -33,6 +33,19 @@ type Message = {
   sender_id: string;
   message: string;
   created_at: string;
+  read_at?: string | null;
+};
+
+type ConversationContext = {
+  id: number;
+  product_title: string | null;
+  product_category: string | null;
+  product_price: number | null;
+  counterparty_id: string;
+  counterparty_name: string;
+  counterparty_verification_status: string | null;
+  counterparty_avatar_url: string | null;
+  counterparty_role: "Seller" | "Buyer";
 };
 
 type Product = {
@@ -172,6 +185,9 @@ function ChatContent() {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
+            if (newMsg.sender_id !== userId) {
+              markConversationRead(conversation.id, userId);
+            }
           }
         }
       )
@@ -185,7 +201,7 @@ function ChatContent() {
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [conversation]);
+  }, [conversation, userId]);
 
   async function initChat() {
     setLoading(true);
@@ -302,6 +318,35 @@ function ChatContent() {
         ...cpData,
         role: counterpartyRole,
       });
+    } else {
+      // Profile RLS may intentionally hide direct profile reads. The inbox RPC only
+      // exposes the public identity of a participant in this user's conversation.
+      const { data: inboxContext } = await supabase.rpc("get_my_conversation_inbox");
+      const context = (inboxContext as ConversationContext[] | null)?.find(
+        (row) => Number(row.id) === Number(activeConv.id)
+      );
+
+      if (context) {
+        setCounterparty({
+          id: context.counterparty_id,
+          full_name: context.counterparty_name,
+          location_name: null,
+          latitude: null,
+          longitude: null,
+          verification_status: context.counterparty_verification_status,
+          avatar_url: context.counterparty_avatar_url,
+          role: context.counterparty_role,
+        });
+
+        if (!prodData && context.product_title) {
+          setProduct({
+            id: activeConv.product_id,
+            title: context.product_title,
+            category: context.product_category || "Marketplace listing",
+            price: Number(context.product_price || 0),
+          });
+        }
+      }
     }
 
     // Fetch seller profile for location and distance
@@ -351,7 +396,24 @@ function ChatContent() {
     }
 
     await loadMessages(activeConv.id, false);
+    await markConversationRead(activeConv.id, user.id);
     setLoading(false);
+  }
+
+  async function markConversationRead(cId: number, currentUserId: string) {
+    const { error: rpcError } = await supabase.rpc("mark_conversation_read", {
+      p_conversation_id: cId,
+    });
+
+    if (!rpcError) return;
+
+    // Compatibility fallback while Phase 15 is being rolled out.
+    await supabase
+      .from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("conversation_id", cId)
+      .neq("sender_id", currentUserId)
+      .is("read_at", null);
   }
 
   async function loadMessages(cId: number, quiet = false) {

@@ -75,7 +75,11 @@ export default function AIMatchPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [images, setImages] = useState<Record<string, ProductImage[]>>({});
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : new URLSearchParams(window.location.search).get("requirement") || ""
+  );
   const [isMatching, setIsMatching] = useState(false);
   const [aiMatches, setAiMatches] = useState<Record<string, { matchScore: number; matchReason: string; matchedTerms: string[] }>>({});
   const [aiSummary, setAiSummary] = useState("");

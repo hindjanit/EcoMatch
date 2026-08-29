@@ -96,7 +96,13 @@ export default function MarketplacePage() {
   const [message, setMessage] = useState("");
 
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
+  const [category, setCategory] = useState(() => {
+    if (typeof window === "undefined") return "All";
+    const initialCategory = new URLSearchParams(window.location.search).get("category");
+    return initialCategory && categories.includes(initialCategory as (typeof categories)[number])
+      ? initialCategory
+      : "All";
+  });
   const [condition, setCondition] = useState("All");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");

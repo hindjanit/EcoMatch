@@ -27,8 +27,11 @@ export default function Navbar() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [messageToast, setMessageToast] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -47,14 +50,17 @@ export default function Navbar() {
 
         if (userError || !user) {
           setIsLoggedIn(false);
+          setUserId("");
           setUserRole(null);
           setUserName(null);
           setIsVerified(false);
+          setUnreadCount(0);
           setAuthLoading(false);
           return;
         }
 
         setIsLoggedIn(true);
+        setUserId(user.id);
 
         const { data: profile } = await supabase
           .from("profiles")
@@ -67,6 +73,10 @@ export default function Navbar() {
         setUserRole(profile?.role || null);
         setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
         setIsVerified(profile?.verification_status === "verified");
+        const { data: unreadTotal } = await supabase.rpc("get_unread_message_count");
+        if (mounted && unreadTotal !== null) {
+          setUnreadCount(Number(unreadTotal || 0));
+        }
         setAuthLoading(false);
       } catch (error) {
         console.error("Auth check error:", error);
@@ -90,11 +100,73 @@ export default function Navbar() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (!userId) return;
+
+    async function refreshUnreadCount() {
+      const { data } = await supabase.rpc("get_unread_message_count");
+      if (data !== null) setUnreadCount(Number(data || 0));
+    }
+
+    refreshUnreadCount();
+  }, [pathname, supabase, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    async function refreshUnreadCount() {
+      const { data } = await supabase.rpc("get_unread_message_count");
+      if (data !== null) setUnreadCount(Number(data || 0));
+    }
+
+    const channel = supabase
+      .channel(`message-alerts-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const incoming = payload.new as {
+            conversation_id: number;
+            sender_id: string;
+            message: string;
+          };
+
+          if (incoming.sender_id === userId) return;
+
+          setUnreadCount((count) => count + 1);
+          setMessageToast(incoming.message);
+          window.setTimeout(() => setMessageToast(null), 5000);
+
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            new Notification("New EcoMatch message", {
+              body: incoming.message,
+              icon: "/favicon.ico",
+              tag: `ecomatch-conversation-${incoming.conversation_id}`,
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        () => {
+          void refreshUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, userId]);
+
   async function handleLogout() {
     setAuthLoading(true);
     await supabase.auth.signOut();
     setIsLoggedIn(false);
+    setUserId("");
     setUserRole(null);
+    setUnreadCount(0);
     setAuthLoading(false);
     setUserDropdownOpen(false);
     router.push("/login");
@@ -113,23 +185,24 @@ export default function Navbar() {
     { label: "AI Match", href: "/ai-match", icon: Sparkles },
     { label: "Ledger", href: "/ledger", icon: ShieldCheck },
   ];
+  const isHome = pathname === "/";
 
   return (
     <nav className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6 sm:pt-4">
       <div className="mx-auto flex max-w-7xl items-center justify-between rounded-2xl border border-white/10 bg-[#080c14]/85 px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-2xl sm:px-6">
         {/* Brand Logo */}
         <Link href="/" className="group flex items-center gap-2.5">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-sky-400/30 bg-gradient-to-br from-sky-500/20 to-indigo-500/10 text-base font-bold text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.2)] transition group-hover:scale-105">
+          <div className={`relative flex h-9 w-9 items-center justify-center rounded-xl border text-base font-bold transition group-hover:scale-105 ${isHome ? "border-[#b9ff66]/30 bg-[#b9ff66]/10 text-[#b9ff66] shadow-[0_0_15px_rgba(185,255,102,0.14)]" : "border-sky-400/30 bg-gradient-to-br from-sky-500/20 to-indigo-500/10 text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.2)]"}`}>
             ♻
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-sky-500"></span>
+              <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${isHome ? "bg-[#b9ff66]" : "bg-sky-400"}`}></span>
+              <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isHome ? "bg-[#b9ff66]" : "bg-sky-500"}`}></span>
             </span>
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xl font-black tracking-tight text-white">
-                Eco<span className="bg-gradient-to-r from-sky-400 via-indigo-300 to-emerald-400 bg-clip-text text-transparent">Match</span>
+                Eco<span className={`bg-clip-text text-transparent ${isHome ? "bg-gradient-to-r from-[#b9ff66] to-emerald-300" : "bg-gradient-to-r from-sky-400 via-indigo-300 to-emerald-400"}`}>Match</span>
               </span>
             </div>
           </div>
@@ -187,10 +260,14 @@ export default function Navbar() {
               <Link
                 href="/chat/inbox"
                 className="relative hidden rounded-xl border border-white/10 bg-white/5 p-2 text-white/80 transition hover:bg-white/10 hover:text-white sm:flex"
-                title="Messages"
+                title={unreadCount > 0 ? `${unreadCount} unread messages` : "Messages"}
               >
                 <MessageSquare className="h-4 w-4" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-sky-400" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#b9ff66] px-1 text-[9px] font-black text-[#10251b] ring-2 ring-[#080c14]">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
 
               {/* User Dropdown Trigger */}
@@ -260,6 +337,21 @@ export default function Navbar() {
                         My Profile & Trust
                       </Link>
                       <Link
+                        href="/chat/inbox"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/5 hover:text-sky-300"
+                      >
+                        <span className="flex items-center gap-2">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Messages
+                        </span>
+                        {unreadCount > 0 && (
+                          <span className="rounded-full bg-sky-300 px-1.5 py-0.5 text-[9px] font-black text-slate-950">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </Link>
+                      <Link
                         href="/offers"
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/5 hover:text-sky-300"
@@ -292,7 +384,7 @@ export default function Navbar() {
               </Link>
               <Link
                 href="/signup"
-                className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-sky-400 via-indigo-400 to-sky-500 px-4 py-2 text-xs font-black text-slate-950 shadow-[0_0_15px_rgba(56,189,248,0.3)] transition hover:from-sky-300 hover:to-sky-400 hover:scale-[1.02]"
+                className={`flex items-center gap-1 rounded-xl px-4 py-2 text-xs font-black text-slate-950 transition hover:scale-[1.02] ${isHome ? "bg-[#b9ff66] shadow-[0_0_15px_rgba(185,255,102,0.22)] hover:bg-[#cbff8d]" : "bg-gradient-to-r from-sky-400 via-indigo-400 to-sky-500 shadow-[0_0_15px_rgba(56,189,248,0.3)] hover:from-sky-300 hover:to-sky-400"}`}
               >
                 <Flame className="h-3.5 w-3.5 fill-current" />
                 Join Free
@@ -361,6 +453,11 @@ export default function Navbar() {
               >
                 <MessageSquare className="h-4 w-4 text-sky-400" />
                 Chat Messages
+                {unreadCount > 0 && (
+                  <span className="ml-auto rounded-full bg-sky-300 px-2 py-0.5 text-[10px] font-black text-slate-950">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
               <Link
                 href="/profile"
@@ -383,6 +480,22 @@ export default function Navbar() {
             </div>
           )}
         </div>
+      )}
+
+      {messageToast && (
+        <Link
+          href="/chat/inbox"
+          onClick={() => setMessageToast(null)}
+          className="fixed right-4 top-24 z-[60] flex w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-sky-300/25 bg-[#0b151f]/95 p-4 text-left shadow-2xl backdrop-blur-2xl"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-300 text-slate-950">
+            <MessageSquare className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-black text-white">New EcoMatch message</span>
+            <span className="mt-1 block truncate text-xs text-slate-400">{messageToast}</span>
+          </span>
+        </Link>
       )}
     </nav>
   );
