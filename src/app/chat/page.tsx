@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Sparkles,
   Navigation,
+  Boxes,
 } from "lucide-react";
 
 type Conversation = {
@@ -48,6 +49,17 @@ type SellerProfile = {
   latitude: number | null;
   longitude: number | null;
   verification_status: string | null;
+};
+
+type CounterpartyProfile = {
+  id: string;
+  full_name: string | null;
+  location_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  verification_status: string | null;
+  avatar_url?: string | null;
+  role: "Seller" | "Buyer";
 };
 
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -95,6 +107,7 @@ function ChatContent() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
+  const [counterparty, setCounterparty] = useState<CounterpartyProfile | null>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState(inquiry || "");
@@ -272,6 +285,24 @@ function ChatContent() {
       .maybeSingle();
 
     if (prodData) setProduct(prodData as Product);
+
+    // Fetch counterparty profile
+    const isBuyerUser = user.id === activeConv.buyer_id;
+    const counterpartyId = isBuyerUser ? activeConv.seller_id : activeConv.buyer_id;
+    const counterpartyRole: "Seller" | "Buyer" = isBuyerUser ? "Seller" : "Buyer";
+
+    const { data: cpData } = await supabase
+      .from("profiles")
+      .select("id, full_name, location_name, latitude, longitude, verification_status, avatar_url")
+      .eq("id", counterpartyId)
+      .maybeSingle();
+
+    if (cpData) {
+      setCounterparty({
+        ...cpData,
+        role: counterpartyRole,
+      });
+    }
 
     // Fetch seller profile for location and distance
     const { data: sellerData } = await supabase
@@ -456,41 +487,86 @@ function ChatContent() {
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery)}`
     : null;
 
+  const counterpartyName =
+    counterparty?.full_name || (counterparty?.role === "Seller" ? "Seller" : "Buyer");
+  const counterpartyInitials = counterpartyName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <div className="relative mx-auto max-w-4xl px-4 pt-28 sm:px-6">
       {/* Top Chat Bar */}
       <div className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/90 p-4 shadow-xl backdrop-blur-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/chat/inbox"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 hover:text-white"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/70 hover:text-white transition"
+              title="Back to Inbox"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
-                  {product?.category || "Material"}
+
+            {/* Counterparty Avatar Badge */}
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/40 bg-gradient-to-br from-emerald-500/30 to-sky-500/20 text-emerald-300 font-black text-sm shadow-md">
+              <span>{counterpartyInitials || "U"}</span>
+              {counterparty?.verification_status === "verified" && (
+                <span
+                  className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 text-slate-950 shadow-sm"
+                  title="UIDAI Verified Member"
+                >
+                  <ShieldCheck className="h-2 w-2 stroke-[3]" />
                 </span>
-                <h2 className="font-bold text-white text-sm sm:text-base">
-                  {product?.title || "Material Discussion"}
-                </h2>
-              </div>
-              {product?.price !== undefined && (
-                <p className="text-xs text-emerald-400 font-semibold">
-                  Listed Price: ₹{product.price.toLocaleString("en-IN")}
-                </p>
               )}
+            </div>
+
+            <div className="min-w-0">
+              {/* Line 1: Primary Counterparty Name + Role Badge */}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-bold text-white text-base sm:text-lg leading-tight truncate">
+                  {counterpartyName}
+                </h2>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-mono font-black uppercase ${
+                    counterparty?.role === "Seller"
+                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                      : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  }`}
+                >
+                  {counterparty?.role || "Member"}
+                </span>
+                {counterparty?.verification_status === "verified" && (
+                  <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-400">
+                    <ShieldCheck className="h-2.5 w-2.5" /> Verified
+                  </span>
+                )}
+              </div>
+
+              {/* Line 2: Product Context (Regarding: Laptop · ₹40,999) */}
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-emerald-400/90 truncate">
+                <Boxes className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                <span className="font-semibold text-slate-200 truncate">
+                  Re: {product?.title || "Material Discussion"}
+                </span>
+                {product?.price !== undefined && (
+                  <span className="text-emerald-400 font-mono font-bold">
+                    · ₹{product.price.toLocaleString("en-IN")}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           {product?.id && (
             <Link
               href={`/product/${product.id}`}
-              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20"
+              className="shrink-0 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition flex items-center gap-1"
             >
-              View Product
+              <span>View Product</span>
+              <ExternalLink className="h-3 w-3" />
             </Link>
           )}
         </div>

@@ -694,6 +694,7 @@ export default function DealRoomPage() {
                     userId={userId}
                     counterpartyId={isBuyer ? deal.seller_id : deal.buyer_id}
                     counterpartyName={isBuyer ? (seller?.full_name || "Seller") : (buyer?.full_name || "Buyer")}
+                    productTitle={product?.title || "Material Lot"}
                     isBuyer={isBuyer}
                   />
                 )}

@@ -22,6 +22,7 @@ interface DealRoomCallWidgetProps {
   counterpartyId: string;
   counterpartyName: string;
   isBuyer: boolean;
+  productTitle?: string;
   disabled?: boolean;
 }
 
@@ -44,6 +45,7 @@ export default function DealRoomCallWidget({
   counterpartyId,
   counterpartyName,
   isBuyer,
+  productTitle,
   disabled = false,
 }: DealRoomCallWidgetProps) {
   const supabase = createClient();
@@ -657,7 +659,10 @@ export default function DealRoomCallWidget({
           className="flex items-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-500/15 px-4 py-2.5 text-xs font-black text-sky-300 transition-all hover:bg-sky-500/25 active:scale-95 disabled:opacity-50 shadow-lg shadow-sky-500/10"
         >
           <PhoneCall className="h-4 w-4 text-sky-400 animate-pulse" />
-          <span>📞 Call {isBuyer ? "Seller" : "Buyer"} (Secure In-App)</span>
+          <span>
+            📞 Call {counterpartyName} ({isBuyer ? "Seller" : "Buyer"})
+            {productTitle ? ` — Re: ${productTitle}` : ""}
+          </span>
         </button>
       )}
 
@@ -669,8 +674,17 @@ export default function DealRoomCallWidget({
               <PhoneCall className="h-8 w-8 text-sky-400 animate-bounce" />
             </div>
 
-            <h3 className="mt-4 text-lg font-black text-white">Calling {counterpartyName}...</h3>
-            <div className="mt-1 flex items-center justify-center gap-1.5 text-xs text-sky-300 font-mono">
+            <h3 className="mt-4 text-lg font-black text-white">
+              Calling {counterpartyName} ({isBuyer ? "Seller" : "Buyer"})...
+            </h3>
+
+            {productTitle && (
+              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-sky-500/15 border border-sky-500/30 px-3 py-0.5 text-xs font-semibold text-sky-300">
+                <span>Regarding: {productTitle}</span>
+              </div>
+            )}
+
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-sky-300 font-mono">
               <Volume2 className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
               <span>Ringtone Active • {callStatusMsg || "Ringing..."}</span>
             </div>
@@ -705,12 +719,21 @@ export default function DealRoomCallWidget({
               Incoming Handover Call
             </span>
 
-            <h3 className="mt-2 text-xl font-black text-white">{counterpartyName}</h3>
-            <p className="mt-1 text-xs text-white/60">Deal Code: #{dealCode}</p>
+            <h3 className="mt-2 text-xl font-black text-white">
+              {counterpartyName} ({isBuyer ? "Seller" : "Buyer"})
+            </h3>
+
+            {productTitle ? (
+              <p className="mt-1 text-xs text-white/80 font-semibold">
+                Regarding: <span className="text-emerald-300 font-bold">{productTitle}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-white/60">Deal Code: #{dealCode}</p>
+            )}
 
             <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-emerald-400 font-mono">
               <Volume2 className="h-3.5 w-3.5 animate-bounce" />
-              <span>Ringing • Handover Request</span>
+              <span>Ringing • Handover Call</span>
             </div>
 
             <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400">
@@ -748,8 +771,15 @@ export default function DealRoomCallWidget({
                 <Volume2 className={`h-5 w-5 ${hasRemoteAudio ? "animate-bounce" : "animate-pulse"}`} />
               </div>
               <div>
-                <h4 className="text-sm font-black text-white">{counterpartyName}</h4>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-400">
+                <h4 className="text-sm font-black text-white">
+                  {counterpartyName} ({isBuyer ? "Seller" : "Buyer"})
+                </h4>
+                {productTitle && (
+                  <p className="text-[10px] text-emerald-300/80 truncate max-w-[170px]">
+                    Re: {productTitle}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-400 mt-0.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
                   <span>{formatTimer(duration)}</span>
                 </div>
