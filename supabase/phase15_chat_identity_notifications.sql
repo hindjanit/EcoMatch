@@ -4,6 +4,11 @@
 alter table public.messages
   add column if not exists read_at timestamptz;
 
+-- Some existing EcoMatch databases predate profile avatars. Keep the migration
+-- compatible with those schemas and allow the inbox RPC to return an avatar.
+alter table public.profiles
+  add column if not exists avatar_url text;
+
 create index if not exists idx_messages_unread
   on public.messages(conversation_id, sender_id, read_at)
   where read_at is null;

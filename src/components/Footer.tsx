@@ -5,37 +5,37 @@ import { Sparkles, ShieldCheck, Activity, Globe } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="relative mt-20 border-t border-[#7B998B]/20 bg-[#031c13] text-[#9CB4A7] overflow-hidden">
+    <footer className="relative mt-20 border-t border-[#b9ff66]/20 bg-[#07160f] text-[#a7b8ae] overflow-hidden">
       {/* Top ambient glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[1px] bg-gradient-to-r from-transparent via-[#7B998B]/50 to-transparent shadow-[0_0_15px_rgba(123,153,139,0.5)]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[1px] bg-gradient-to-r from-transparent via-[#b9ff66]/50 to-transparent shadow-[0_0_15px_rgba(185,255,102,0.35)]" />
 
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Col 1: Brand & Status */}
           <div className="space-y-4 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#7B998B]/40 bg-[#064430] text-lg font-bold text-[#FAF8F5]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#b9ff66]/40 bg-[#10251b] text-lg font-bold text-[#b9ff66]">
                 ♻
               </span>
-              <span className="text-xl font-black text-[#FAF8F5]">
-                Eco<span className="text-[#9CB4A7]">Match</span>
+              <span className="text-xl font-black text-[#f3f4e9]">
+                Eco<span className="text-[#b9ff66]">Match</span>
               </span>
             </Link>
-            <p className="text-xs leading-relaxed text-[#9CB4A7]">
+            <p className="text-xs leading-relaxed text-[#a7b8ae]">
               Next-generation circular economy marketplace where organizations exchange surplus materials powered by AI waste classification and cryptographic ownership records.
             </p>
 
             {/* Live System Status Badges */}
             <div className="space-y-2 pt-2">
-              <div className="flex items-center gap-2 rounded-lg border border-[#7B998B]/30 bg-[#064430]/40 px-2.5 py-1 text-[11px] text-[#D8E3DC]">
+              <div className="flex items-center gap-2 rounded-lg border border-[#b9ff66]/25 bg-[#10251b]/70 px-2.5 py-1 text-[11px] text-[#dfe4d2]">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#7B998B] opacity-75"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#0E6E4D]"></span>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#b9ff66] opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#b9ff66]"></span>
                 </span>
                 <span>AI Vision Engine: <strong>Online</strong></span>
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-[#7B998B]/30 bg-[#064430]/40 px-2.5 py-1 text-[11px] text-[#D8E3DC]">
-                <ShieldCheck className="h-3 w-3 text-[#7B998B]" />
+              <div className="flex items-center gap-2 rounded-lg border border-[#b9ff66]/25 bg-[#10251b]/70 px-2.5 py-1 text-[11px] text-[#dfe4d2]">
+                <ShieldCheck className="h-3 w-3 text-[#b9ff66]" />
                 <span>SHA-256 Ledger: <strong>Synced</strong></span>
               </div>
             </div>

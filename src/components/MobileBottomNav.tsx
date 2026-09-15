@@ -47,7 +47,7 @@ export default function MobileBottomNav() {
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-50 p-2 sm:hidden">
-      <div className="mx-auto flex max-w-md items-center justify-around rounded-2xl border border-emerald-500/20 bg-[#051810]/90 py-2 shadow-2xl backdrop-blur-2xl">
+      <div className="mx-auto flex max-w-md items-center justify-around rounded-2xl border border-emerald-500/20 bg-[#0a1712]/92 py-2 shadow-2xl backdrop-blur-2xl">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = pathname === tab.href;
@@ -68,7 +68,7 @@ export default function MobileBottomNav() {
               >
                 <Icon className="h-4 w-4" />
                 {tab.href === "/chat/inbox" && unreadCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-sky-300 px-1 text-[8px] font-black text-slate-950 ring-2 ring-[#051810]">
+                  <span className="absolute -right-2 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-sky-300 px-1 text-[8px] font-black text-slate-950 ring-2 ring-[#0a1712]">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}

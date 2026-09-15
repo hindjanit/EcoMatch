@@ -319,7 +319,7 @@ export default function ChatInboxPage() {
           )}
         </div>
 
-        <div className="mt-8 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b111b]/80 px-4 py-3 backdrop-blur-xl">
+        <div className="mt-8 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#10251b]/80 px-4 py-3 backdrop-blur-xl">
           <Search className="h-4 w-4 shrink-0 text-slate-500" />
           <input
             value={query}
@@ -343,7 +343,7 @@ export default function ChatInboxPage() {
             ))}
           </div>
         ) : filteredConversations.length === 0 ? (
-          <div className="mt-6 rounded-[2rem] border border-white/10 bg-[#0b111b]/75 p-10 text-center backdrop-blur-xl sm:p-14">
+          <div className="mt-6 rounded-[2rem] border border-white/10 bg-[#10251b]/75 p-10 text-center backdrop-blur-xl sm:p-14">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-400/10 text-sky-300">
               <MessageCircle className="h-6 w-6" />
             </div>
@@ -381,7 +381,7 @@ export default function ChatInboxPage() {
                   className={`group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[1.5rem] border p-4 transition sm:gap-4 sm:p-5 ${
                     isUnread
                       ? "border-sky-400/35 bg-sky-400/[0.08] shadow-[0_18px_50px_rgba(56,189,248,0.08)]"
-                      : "border-white/10 bg-[#0b111b]/80 hover:border-white/20 hover:bg-[#101824]"
+                      : "border-white/10 bg-[#10251b]/80 hover:border-white/20 hover:bg-[#173328]"
                   }`}
                 >
                   <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-sky-400/25 to-indigo-400/20 text-sm font-black text-sky-200 sm:h-14 sm:w-14">
@@ -398,7 +398,7 @@ export default function ChatInboxPage() {
                       initials || <UserRound className="h-5 w-5" />
                     )}
                     {conversation.counterparty_verification_status === "verified" && (
-                      <span className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-sky-300 text-slate-950 ring-2 ring-[#0b111b]">
+                      <span className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-sky-300 text-slate-950 ring-2 ring-[#10251b]">
                         <ShieldCheck className="h-2.5 w-2.5 stroke-[3]" />
                       </span>
                     )}

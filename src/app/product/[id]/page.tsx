@@ -35,7 +35,10 @@ import {
   MapPin,
   Navigation,
   ExternalLink,
+  PhoneCall,
+  Phone,
 } from "lucide-react";
+import { useCalling } from "@/components/GlobalCallingProvider";
 
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadiusKm = 6371;
@@ -90,6 +93,7 @@ export default function ProductDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = createClient();
+  const { initiateCall } = useCalling();
 
   const productId = params.id as string;
 
@@ -401,6 +405,30 @@ export default function ProductDetailsPage() {
       product.seller_id
     )}${splitNote}`;
     router.push(targetUrl);
+  }
+
+  async function handleCallSeller() {
+    if (!product) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user.id === product.seller_id) {
+      setDealMessage("You cannot call yourself.");
+      return;
+    }
+
+    initiateCall({
+      targetUserId: product.seller_id,
+      targetUserName: sellerTrust?.full_name || "Verified Seller",
+      productId: product.id,
+      productTitle: product.title,
+    });
   }
 
   if (loading) {
@@ -757,25 +785,44 @@ export default function ProductDetailsPage() {
                     : "Enter Secure Deal Room"}
                 </button>
 
+                {/* Communication Actions: Chat & Secure Call */}
                 <div className="grid grid-cols-2 gap-3">
-                  {product.is_negotiable && (
-                    <button
-                      onClick={() => setShowOfferModal(true)}
-                      className="flex items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
-                    >
-                      <TrendingDown className="h-4 w-4" />
-                      {selectedQuantity !== totalQty ? "Offer on Split Qty" : "Make Offer"}
-                    </button>
-                  )}
                   <button
                     onClick={openChatWithSplitInquiry}
-                    className={`flex items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 py-3 text-xs font-bold text-white transition hover:bg-white/10 ${
-                      !product.is_negotiable ? "col-span-2" : ""
-                    }`}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-white/5 py-3 text-xs font-bold text-white transition hover:bg-white/10"
                   >
                     <MessageSquare className="h-4 w-4 text-emerald-400" />
-                    {selectedQuantity !== totalQty ? `Ask for ${selectedQuantity} ${product.quantity_unit}` : "Chat with Seller"}
+                    <span>Chat with Seller</span>
                   </button>
+
+                  <button
+                    onClick={handleCallSeller}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-sky-400/40 bg-sky-500/15 py-3 text-xs font-bold text-sky-300 transition hover:bg-sky-500/25 active:scale-95 shadow-lg shadow-sky-500/10"
+                  >
+                    <PhoneCall className="h-4 w-4 text-sky-400 animate-pulse" />
+                    <span>Call Seller (Secure)</span>
+                  </button>
+                </div>
+
+                {/* Make Offer Button if negotiable */}
+                {product.is_negotiable && (
+                  <button
+                    onClick={() => setShowOfferModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+                  >
+                    <TrendingDown className="h-4 w-4" />
+                    <span>{selectedQuantity !== totalQty ? "Make Offer on Split Qty" : "Make an Offer"}</span>
+                  </button>
+                )}
+
+                {/* Seller Online Presence Banner */}
+                <div className="flex items-center justify-between px-2 py-1 text-[11px] text-white/50 border-t border-white/5 pt-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="font-semibold text-emerald-300">Seller Online</span>
+                    <span className="text-white/40">· Phone Number Masked</span>
+                  </div>
+                  <span className="text-[10px] text-white/40 font-mono">Encrypted WebRTC</span>
                 </div>
               </div>
             </div>

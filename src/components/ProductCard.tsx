@@ -64,10 +64,10 @@ export default function ProductCard({
 
   return (
     <div className="card-3d-wrap group relative">
-      <div className="card-3d relative flex flex-col justify-between rounded-3xl border border-white/10 bg-[#0c101a]/85 p-4 shadow-[0_15px_35px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl transition-all duration-300 hover:border-sky-400/40 hover:bg-[#0f1523]/95">
+      <div className="card-3d relative flex flex-col justify-between rounded-3xl border border-white/10 bg-[#10251b]/85 p-4 shadow-[0_15px_35px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl transition-all duration-300 hover:border-sky-400/40 hover:bg-[#173328]/95">
         {/* Top Badges Floating Over Image */}
         <div>
-          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#07090e]">
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#07160f]">
             {imageUrl && !imageError ? (
               <img
                 src={imageUrl}
@@ -76,7 +76,7 @@ export default function ProductCard({
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#0c121e] to-[#06080e] p-4 text-center">
+              <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#10251b] to-[#07160f] p-4 text-center">
                 <Boxes className="h-10 w-10 text-sky-400/40" />
                 <span className="mt-2 text-xs font-semibold text-slate-400">
                   {product.material || product.category}

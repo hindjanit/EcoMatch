@@ -341,7 +341,7 @@ export default function MarketplacePage() {
         </div>
 
         {/* Search & Action Bar */}
-        <div className="mt-8 rounded-3xl border border-white/10 bg-[#0c101a]/85 p-4 shadow-2xl backdrop-blur-2xl">
+        <div className="mt-8 rounded-3xl border border-white/10 bg-[#10251b]/85 p-4 shadow-2xl backdrop-blur-2xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {/* Search Box */}
             <div className="relative flex-1">
@@ -351,7 +351,7 @@ export default function MarketplacePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search materials (e.g. Aluminium offcuts, HDPE drums, copper wire, timber)..."
-                className="w-full rounded-2xl border border-white/10 bg-[#07090e] pl-11 pr-10 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none"
+                className="w-full rounded-2xl border border-white/10 bg-[#07160f] pl-11 pr-10 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none"
               />
               {search && (
                 <button
@@ -386,7 +386,7 @@ export default function MarketplacePage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full rounded-2xl border border-white/10 bg-[#07090e] px-4 py-3 text-xs font-bold text-slate-200 focus:border-sky-400 focus:outline-none sm:w-auto"
+                className="w-full rounded-2xl border border-white/10 bg-[#07160f] px-4 py-3 text-xs font-bold text-slate-200 focus:border-sky-400 focus:outline-none sm:w-auto"
               >
                 <option value="newest">Newest First</option>
                 <option value="price_asc">Price: Low to High</option>

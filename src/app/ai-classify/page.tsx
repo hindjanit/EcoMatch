@@ -250,7 +250,7 @@ export default function AIClassifyPage() {
 
         {/* Direct Batch / File Ingestion Card */}
         <div
-          className={`mt-10 rounded-3xl border border-white/10 bg-[#0c101a]/85 p-6 shadow-2xl backdrop-blur-2xl transition-all ${
+          className={`mt-10 rounded-3xl border border-white/10 bg-[#10251b]/85 p-6 shadow-2xl backdrop-blur-2xl transition-all ${
             isScanning ? "laser-sweep border-sky-400" : ""
           }`}
         >
@@ -337,7 +337,7 @@ export default function AIClassifyPage() {
               onChange={(e) => setInput(e.target.value)}
               rows={3}
               placeholder="e.g. 500 kg industrial copper wire scraps from motor winding facility with PVC insulation removed..."
-              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-[#080c14] p-3.5 text-sm text-white placeholder:text-white/30 focus:border-sky-400 focus:outline-none"
+              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-[#07160f] p-3.5 text-sm text-white placeholder:text-white/30 focus:border-sky-400 focus:outline-none"
             />
           </div>
 
@@ -451,7 +451,7 @@ export default function AIClassifyPage() {
               </div>
 
               {/* Rationale, Specs & 1-CLICK ADD PRODUCT CHOICE */}
-              <div className="rounded-3xl border border-white/10 bg-[#0c101a]/90 p-6 shadow-2xl flex flex-col justify-between space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-[#10251b]/90 p-6 shadow-2xl flex flex-col justify-between space-y-4">
                 <div className="space-y-3">
                   <div>
                     <h4 className="text-xs font-bold uppercase text-white/50">Suggested Listing Description</h4>

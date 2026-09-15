@@ -185,24 +185,22 @@ export default function Navbar() {
     { label: "AI Match", href: "/ai-match", icon: Sparkles },
     { label: "Ledger", href: "/ledger", icon: ShieldCheck },
   ];
-  const isHome = pathname === "/";
-
   return (
     <nav className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6 sm:pt-4">
-      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-2xl border border-white/10 bg-[#080c14]/85 px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-2xl sm:px-6">
+      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-2xl border border-white/10 bg-[#0a1712]/88 px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-2xl sm:px-6">
         {/* Brand Logo */}
         <Link href="/" className="group flex items-center gap-2.5">
-          <div className={`relative flex h-9 w-9 items-center justify-center rounded-xl border text-base font-bold transition group-hover:scale-105 ${isHome ? "border-[#b9ff66]/30 bg-[#b9ff66]/10 text-[#b9ff66] shadow-[0_0_15px_rgba(185,255,102,0.14)]" : "border-sky-400/30 bg-gradient-to-br from-sky-500/20 to-indigo-500/10 text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.2)]"}`}>
+          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[#b9ff66]/30 bg-[#b9ff66]/10 text-base font-bold text-[#b9ff66] shadow-[0_0_15px_rgba(185,255,102,0.14)] transition group-hover:scale-105">
             ♻
             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-              <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${isHome ? "bg-[#b9ff66]" : "bg-sky-400"}`}></span>
-              <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isHome ? "bg-[#b9ff66]" : "bg-sky-500"}`}></span>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#b9ff66] opacity-75"></span>
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#b9ff66]"></span>
             </span>
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xl font-black tracking-tight text-white">
-                Eco<span className={`bg-clip-text text-transparent ${isHome ? "bg-gradient-to-r from-[#b9ff66] to-emerald-300" : "bg-gradient-to-r from-sky-400 via-indigo-300 to-emerald-400"}`}>Match</span>
+                Eco<span className="bg-gradient-to-r from-[#b9ff66] to-emerald-300 bg-clip-text text-transparent">Match</span>
               </span>
             </div>
           </div>
@@ -264,7 +262,7 @@ export default function Navbar() {
               >
                 <MessageSquare className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -right-2 -top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#b9ff66] px-1 text-[9px] font-black text-[#10251b] ring-2 ring-[#080c14]">
+                  <span className="absolute -right-2 -top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#b9ff66] px-1 text-[9px] font-black text-[#10251b] ring-2 ring-[#0a1712]">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
@@ -291,7 +289,7 @@ export default function Navbar() {
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-white/10 bg-[#080c14]/95 p-2 shadow-2xl shadow-black/80 backdrop-blur-2xl">
+                  <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-white/10 bg-[#0a1712]/95 p-2 shadow-2xl shadow-black/80 backdrop-blur-2xl">
                     <div className="border-b border-white/10 px-3 py-2.5">
                       <p className="text-xs text-white/50">Signed in as</p>
                       <p className="truncate text-sm font-bold text-white">
@@ -384,7 +382,7 @@ export default function Navbar() {
               </Link>
               <Link
                 href="/signup"
-                className={`flex items-center gap-1 rounded-xl px-4 py-2 text-xs font-black text-slate-950 transition hover:scale-[1.02] ${isHome ? "bg-[#b9ff66] shadow-[0_0_15px_rgba(185,255,102,0.22)] hover:bg-[#cbff8d]" : "bg-gradient-to-r from-sky-400 via-indigo-400 to-sky-500 shadow-[0_0_15px_rgba(56,189,248,0.3)] hover:from-sky-300 hover:to-sky-400"}`}
+                className="flex items-center gap-1 rounded-xl bg-[#b9ff66] px-4 py-2 text-xs font-black text-[#10251b] shadow-[0_0_15px_rgba(185,255,102,0.22)] transition hover:scale-[1.02] hover:bg-[#cbff8d]"
               >
                 <Flame className="h-3.5 w-3.5 fill-current" />
                 Join Free
@@ -408,7 +406,7 @@ export default function Navbar() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="mt-2 rounded-2xl border border-white/10 bg-[#080c14]/95 p-4 shadow-2xl backdrop-blur-2xl md:hidden">
+        <div className="mt-2 rounded-2xl border border-white/10 bg-[#0a1712]/95 p-4 shadow-2xl backdrop-blur-2xl md:hidden">
           <div className="space-y-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -486,7 +484,7 @@ export default function Navbar() {
         <Link
           href="/chat/inbox"
           onClick={() => setMessageToast(null)}
-          className="fixed right-4 top-24 z-[60] flex w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-sky-300/25 bg-[#0b151f]/95 p-4 text-left shadow-2xl backdrop-blur-2xl"
+          className="fixed right-4 top-24 z-[60] flex w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-sky-300/25 bg-[#10251b]/95 p-4 text-left shadow-2xl backdrop-blur-2xl"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-300 text-slate-950">
             <MessageSquare className="h-4 w-4" />
