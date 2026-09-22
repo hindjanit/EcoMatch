@@ -591,6 +591,19 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
           p_end_reason: "NORMAL_HANGUP",
         });
       } catch {}
+
+      // Also ensure record exists in deal_call_logs so admin immediately sees it
+      try {
+        await supabase.from("deal_call_logs").insert({
+          deal_id: dealId || null,
+          caller_id: userId,
+          receiver_id: counterpartyId,
+          duration_seconds: duration,
+          status: "completed",
+        });
+      } catch (insertLogErr) {
+        console.warn("Global call log insert:", insertLogErr);
+      }
     }
 
     cleanupCall();

@@ -293,7 +293,8 @@ async function checkAdminAndLoad() {
   async function loadCallLogs() {
     setCallsLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch from deal_call_logs
+      const dealLogsPromise = supabase
         .from("deal_call_logs")
         .select(`
           *,
@@ -306,11 +307,62 @@ async function checkAdminAndLoad() {
         `)
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.warn("Load call logs error:", error);
-      } else {
-        setCallLogs((data || []) as DealCallLog[]);
+      // 2. Also fetch platform-wide calls from 'calls' table
+      const platformCallsPromise = supabase
+        .from("calls")
+        .select(`
+          *,
+          caller:caller_id(id, full_name, warning_count, is_banned, verification_status),
+          receiver:receiver_id(id, full_name, warning_count, is_banned, verification_status),
+          deal:deal_id(
+            deal_code, agreed_price, status,
+            product:product_id(title, category)
+          ),
+          product:product_id(title, category)
+        `)
+        .order("created_at", { ascending: false });
+
+      const [dealLogsRes, platformCallsRes] = await Promise.all([dealLogsPromise, platformCallsPromise]);
+
+      const unifiedLogs: DealCallLog[] = [];
+
+      // Add deal_call_logs
+      if (dealLogsRes.data && Array.isArray(dealLogsRes.data)) {
+        unifiedLogs.push(...(dealLogsRes.data as any[]));
       }
+
+      // Add platform calls that are not duplicates
+      if (platformCallsRes.data && Array.isArray(platformCallsRes.data)) {
+        for (const c of platformCallsRes.data) {
+          const alreadyExists = unifiedLogs.some((u) => u.id === c.id || (u.deal_id && u.deal_id === c.deal_id && Math.abs(new Date(u.created_at).getTime() - new Date(c.created_at).getTime()) < 10000));
+          if (!alreadyExists) {
+            unifiedLogs.push({
+              id: c.id,
+              deal_id: c.deal_id || "general-call",
+              caller_id: c.caller_id,
+              receiver_id: c.receiver_id,
+              duration_seconds: c.duration_seconds || 0,
+              recording_url: c.recording_url || null,
+              status: c.status || "completed",
+              created_at: c.created_at,
+              transcript: c.transcript || null,
+              is_diverted: Boolean(c.is_diverted) || (c.risk_status && c.risk_status !== "LOW"),
+              diverted_party: c.diverted_party || null,
+              diversion_reason: c.diversion_reason || (c.risk_status === "CRITICAL" ? "High risk off-platform negotiation flagged by AI" : null),
+              diversion_snippet: c.diversion_snippet || null,
+              risk_score: c.risk_score || (c.risk_status === "CRITICAL" ? 95 : c.risk_status === "HIGH" ? 80 : 10),
+              risk_level: c.risk_level || c.risk_status || "LOW",
+              deal: c.deal || (c.product ? { deal_code: "DIRECT-CALL", agreed_price: 0, status: "completed", product: c.product } : undefined),
+              caller: c.caller,
+              receiver: c.receiver,
+            });
+          }
+        }
+      }
+
+      // Sort combined logs descending
+      unifiedLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setCallLogs(unifiedLogs);
     } catch (e) {
       console.warn("Exception loading calls:", e);
     } finally {
