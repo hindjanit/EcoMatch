@@ -18,6 +18,7 @@ import {
   PlusCircle,
   BarChart3,
   Flame,
+  FileText,
 } from "lucide-react";
 
 export default function Navbar() {
@@ -181,6 +182,7 @@ export default function Navbar() {
 
   const navLinks = [
     { label: "Marketplace", href: "/marketplace", icon: Layers },
+    { label: "Buyer RFQs", href: "/rfq", icon: FileText },
     { label: "AI Classifier", href: "/ai-classify", icon: Cpu },
     { label: "AI Match", href: "/ai-match", icon: Sparkles },
     { label: "Ledger", href: "/ledger", icon: ShieldCheck },

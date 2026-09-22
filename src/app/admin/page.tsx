@@ -21,6 +21,10 @@ import {
   Loader2,
   RotateCcw,
   ShieldCheck,
+  Radio,
+  FileText,
+  Flame,
+  Sparkles,
 } from "lucide-react";
 
 type Product = {
@@ -59,6 +63,14 @@ type DealCallLog = {
   recording_url: string | null;
   status: string;
   created_at: string;
+  transcript?: string | null;
+  is_diverted?: boolean | null;
+  diverted_party?: string | null;
+  diversion_reason?: string | null;
+  diversion_snippet?: string | null;
+  risk_score?: number | null;
+  risk_level?: string | null;
+  admin_action?: string | null;
   deal?: {
     deal_code: string;
     agreed_price: number;
@@ -112,6 +124,8 @@ export default function AdminPage() {
     useState<string | null>(null);
 
   const [riskFilter, setRiskFilter] = useState<"all" | "normal" | "review" | "likely_scam">("all");
+  const [callFilter, setCallFilter] = useState<"all" | "diverted" | "clean">("all");
+  const [simulatingCall, setSimulatingCall] = useState(false);
 
   useEffect(() => {
   checkAdminAndLoad();
@@ -343,6 +357,56 @@ async function checkAdminAndLoad() {
     }
   }
 
+  async function handleSimulateDivertedCall() {
+    setSimulatingCall(true);
+    try {
+      const mockCall: DealCallLog = {
+        id: 'sim-' + Date.now(),
+        deal_id: 'deal-test-sim',
+        caller_id: 'buyer-sim-id',
+        receiver_id: 'seller-sim-id',
+        duration_seconds: 74,
+        recording_url: 'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg',
+        status: 'completed',
+        created_at: new Date().toISOString(),
+        is_diverted: true,
+        diverted_party: 'seller',
+        risk_score: 96,
+        risk_level: 'CRITICAL',
+        diversion_reason: 'Seller explicitly attempted disintermediation by sharing WhatsApp contact and asking for direct PhonePe payment to avoid platform commission.',
+        diversion_snippet: '[Seller]: Bhai WhatsApp pe aa jao 9876543210, platform ka 5% fee kyu dena? Direct PhonePe pe advance bhej do, mai mal bhej dunga.',
+        transcript: '[Buyer]: Hello, PET bottle lot ready hai pickup ke liye?\\n[Seller]: Haan ready hai bhai. Par suno, platform pe mat karo deal.\\n[Seller]: Bhai WhatsApp pe aa jao 9876543210, platform ka 5% fee kyu dena? Direct PhonePe pe advance bhej do, mai mal bhej dunga.\\n[Buyer]: Nahi bhai, mujhe platform escrow safe lagta hai.\\n[Seller]: Arrey tension mat lo, mai saalon se kaam kar raha hu.',
+        deal: {
+          deal_code: 'SIM-PET-88',
+          agreed_price: 18500,
+          status: 'disputed',
+          product: {
+            title: 'Industrial Washed PET Flakes (Blue/Clear Lot)',
+            category: 'Plastics',
+          },
+        },
+        caller: {
+          id: 'buyer-sim-id',
+          full_name: 'Rajesh Polymers (Buyer)',
+          warning_count: 0,
+          is_banned: false,
+          verification_status: 'verified',
+        },
+        receiver: {
+          id: 'seller-sim-id',
+          full_name: 'Om Prakash Scrap Traders (Seller)',
+          warning_count: 1,
+          is_banned: false,
+          verification_status: 'verified',
+        },
+      };
+      setCallLogs((prev) => [mockCall, ...prev]);
+      alert('?? High-Risk Diverted Call Simulated! Check the top Diverted Calls section.');
+    } finally {
+      setSimulatingCall(false);
+    }
+  }
+
   async function updateProductStatus(
     productId: string,
     status: "approved" | "rejected"
@@ -504,6 +568,9 @@ async function checkAdminAndLoad() {
 
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
+
+  const divertedCallLogs = callLogs.filter((c) => c.is_diverted || (c.risk_score && c.risk_score >= 70));
+  const displayedCalls = callFilter === "diverted" ? divertedCallLogs : callFilter === "clean" ? callLogs.filter((c) => !c.is_diverted) : callLogs;
 
   return (
     <main className="eco-page min-h-screen text-white pb-24 relative overflow-hidden">
@@ -1058,11 +1125,51 @@ async function checkAdminAndLoad() {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSimulateDivertedCall}
+                  disabled={simulatingCall}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-red-500 to-amber-500 px-3 py-1.5 text-xs font-black text-white hover:opacity-95 shadow-md shadow-red-500/20"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" /> Simulate Diverted Call (Test AI)
+                </button>
                 <span className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-300">
-                  Total Calls: {callLogs.length}
+                  Total: {callLogs.length}
                 </span>
               </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setCallFilter("all")}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition ${
+                  callFilter === "all" ? "bg-sky-400 text-[#021824]" : "bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                All Calls ({callLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCallFilter("diverted")}
+                className={`flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-bold transition ${
+                  callFilter === "diverted" ? "bg-red-500 text-white" : "border border-red-500/30 bg-red-500/15 text-red-300 hover:bg-red-500/25"
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                🚨 Diverted Calls ({divertedCallLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCallFilter("clean")}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition ${
+                  callFilter === "clean" ? "bg-emerald-400 text-[#03140e]" : "bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                🛡️ Safe Calls ({callLogs.length - divertedCallLogs.length})
+              </button>
             </div>
           </div>
 
@@ -1083,9 +1190,103 @@ async function checkAdminAndLoad() {
             </div>
           )}
 
-          {!callsLoading && callLogs.length > 0 && (
+          {!callsLoading && divertedCallLogs.length > 0 && callFilter !== "clean" && (
+            <div className="rounded-3xl border-2 border-red-500/50 bg-[#160608] p-6 shadow-2xl space-y-6">
+              <div className="flex items-center justify-between border-b border-red-500/30 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/20 text-red-400 border border-red-500/40">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="rounded-md bg-red-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-red-300">
+                      POINT 1: AI DIVERTED CALLS AUDIT
+                    </span>
+                    <h3 className="text-base font-black text-white">Off-Platform Circumvention & Escrow Bypass Attempts</h3>
+                  </div>
+                </div>
+                <span className="rounded-xl bg-red-500 px-3 py-1 font-mono text-xs font-black text-white">
+                  {divertedCallLogs.length} FLAGGED
+                </span>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                {divertedCallLogs.map((log) => (
+                  <div key={"div-" + log.id} className="rounded-3xl border border-red-500/40 bg-[#220a0d] p-5 shadow-2xl space-y-3.5">
+                    <div className="flex items-start justify-between border-b border-red-500/20 pb-2.5">
+                      <div>
+                        <span className="rounded-md bg-red-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-red-300">
+                          {log.diverted_party === "seller" ? "⚠️ SELLER DIVERTED DEAL" : "⚠️ BUYER DIVERTED DEAL"}
+                        </span>
+                        <h4 className="mt-1 text-sm font-black text-white">{log.deal?.product?.title || "Handover Session"}</h4>
+                        <span className="text-[10px] text-white/50">Deal #{log.deal?.deal_code || log.deal_id.slice(0, 8)}</span>
+                      </div>
+                      <span className="rounded-md bg-red-500 px-2 py-0.5 text-[10px] font-black text-white">
+                        Risk {log.risk_score || 95}/100
+                      </span>
+                    </div>
+
+                    {log.diversion_snippet && (
+                      <div className="rounded-2xl border border-red-500/30 bg-black/60 p-3 space-y-1">
+                        <span className="text-[9px] font-black uppercase text-red-400 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Flagged Quote:
+                        </span>
+                        <p className="font-mono text-xs text-red-200 font-bold italic">"{log.diversion_snippet}"</p>
+                      </div>
+                    )}
+
+                    <div className="rounded-2xl border border-white/10 bg-black/40 p-3 space-y-1.5">
+                      <span className="text-[9px] font-black uppercase text-sky-400 flex items-center gap-1">
+                        <Volume2 className="h-3 w-3" /> Call Recording
+                      </span>
+                      {log.recording_url ? (
+                        <audio controls src={log.recording_url} className="w-full rounded-xl" />
+                      ) : (
+                        <p className="text-[11px] text-white/40 italic">Recording processing...</p>
+                      )}
+                    </div>
+
+                    {log.transcript && (
+                      <div className="rounded-2xl border border-white/10 bg-black/40 p-3 space-y-1 max-h-32 overflow-y-auto">
+                        <span className="text-[9px] font-black uppercase text-white/40 flex items-center gap-1">
+                          <FileText className="h-3 w-3" /> AI Transcript
+                        </span>
+                        <p className="font-mono text-[11px] text-white/80 whitespace-pre-line">{log.transcript}</p>
+                      </div>
+                    )}
+
+                    <div className="rounded-2xl border border-red-500/30 bg-[#2d0e12] p-3 space-y-2 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-white">{log.diverted_party === "seller" ? log.receiver?.full_name : log.caller?.full_name}</span>
+                        <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                          {log.receiver?.is_banned ? "🚫 BANNED" : `Strikes: ${log.receiver?.warning_count || 0}/2`}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleIssueStrike(log.receiver_id, log.receiver?.full_name || "Offender", "warning")}
+                          className="flex-1 rounded-xl border border-amber-500/40 bg-amber-500/20 py-1.5 text-[11px] font-black text-amber-300 hover:bg-amber-500/30"
+                        >
+                          ⚠️ Issue Warning
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleIssueStrike(log.receiver_id, log.receiver?.full_name || "Offender", "ban")}
+                          className="flex-1 rounded-xl bg-red-500 py-1.5 text-[11px] font-black text-white hover:bg-red-600"
+                        >
+                          🚫 Ban Account
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!callsLoading && displayedCalls.length > 0 && (
             <div className="grid gap-6 md:grid-cols-2">
-              {callLogs.map((log) => {
+              {displayedCalls.map((log) => {
                 const durationMins = Math.floor((log.duration_seconds || 0) / 60);
                 const durationSecs = (log.duration_seconds || 0) % 60;
                 const formattedDuration = `${String(durationMins).padStart(2, "0")}:${String(durationSecs).padStart(2, "0")}`;

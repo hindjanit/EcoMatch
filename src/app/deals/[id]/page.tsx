@@ -10,6 +10,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import ESGCertificateModal from "@/components/ESGCertificateModal";
+import EprComplianceModal, { EprCertificateData } from "@/components/EprComplianceModal";
+import { Truck } from "lucide-react";
 import DealRoomCallWidget from "@/components/DealRoomCallWidget";
 import VerifiedExchangeCertificateModal from "@/components/VerifiedExchangeCertificateModal";
 import EcoTrustPassportModal from "@/components/EcoTrustPassportModal";
@@ -192,6 +194,14 @@ export default function DealRoomPage() {
   const [disputeReason, setDisputeReason] = useState("Product does not match listing");
   const [disputeDesc, setDisputeDesc] = useState("");
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [deliveryType, setDeliveryType] = useState<"ex_factory" | "seller_delivery" | "logistics_partner">("ex_factory");
+  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [ewayBill, setEwayBill] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [freightEstimate, setFreightEstimate] = useState(1200);
+  const [showEprModal, setShowEprModal] = useState(false);
+  const [eprCertData, setEprCertData] = useState<EprCertificateData | null>(null);
+  const [generatingEpr, setGeneratingEpr] = useState(false);
   const [latestEventHash, setLatestEventHash] = useState("");
 
   const qrRef = useRef<HTMLDivElement | null>(null);
@@ -238,6 +248,39 @@ export default function DealRoomPage() {
     setMeetingLng(sug.longitude);
     setLocationSelected(true);
     setLocationSuggestions([]);
+  }
+
+  async function handleGenerateEpr() {
+    if (!deal) return;
+    setGeneratingEpr(true);
+    try {
+      const res = await fetch("/api/deals/epr-certificate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealId: deal.id,
+          productId: deal.product_id,
+          buyerId: deal.buyer_id,
+          sellerId: deal.seller_id,
+          buyerName: buyer?.full_name || "Verified Buyer",
+          sellerName: seller?.full_name || "Verified Seller",
+          category: product?.category || "Plastics",
+          materialTitle: product?.title || "Circular Asset Lot",
+          quantityKg: 1000,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.certificate) {
+        setEprCertData(data.certificate);
+        setShowEprModal(true);
+      } else {
+        alert("Failed to generate EPR certificate.");
+      }
+    } catch (e) {
+      alert("Error generating EPR certificate.");
+    } finally {
+      setGeneratingEpr(false);
+    }
   }
 
   async function handleUseCurrentLocation() {
@@ -1105,6 +1148,67 @@ export default function DealRoomPage() {
                 </div>
 
                 <div className="mt-4 space-y-4 text-xs">
+                  {/* Point 4: Logistics & Freight Protocol */}
+                  <div className="rounded-2xl border border-sky-500/30 bg-[#061824] p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sky-400 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                        <Truck className="h-4 w-4" /> Logistics & Freight Dispatch Mode
+                      </span>
+                      <span className="rounded-md bg-sky-500/20 px-2 py-0.5 text-[10px] font-mono text-sky-300 font-bold">
+                        Freight Est: ₹{deliveryType === "ex_factory" ? 0 : freightEstimate}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { key: "ex_factory", label: "🏭 Ex-Factory", desc: "Buyer self-pickup" },
+                        { key: "seller_delivery", label: "🚚 Seller Delivery", desc: "Doorstep delivery" },
+                        { key: "logistics_partner", label: "🚛 Freight Partner", desc: "Tata Ace / Truck" },
+                      ].map((mode) => (
+                        <button
+                          key={mode.key}
+                          type="button"
+                          disabled={deal.status === "exchange_ready" || deal.status === "completed"}
+                          onClick={() => setDeliveryType(mode.key as any)}
+                          className={`rounded-xl p-2.5 text-left border transition ${
+                            deliveryType === mode.key
+                              ? "border-sky-400 bg-sky-500/20 text-white shadow-md shadow-sky-500/20"
+                              : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                          }`}
+                        >
+                          <p className="font-bold text-xs">{mode.label}</p>
+                          <p className="text-[10px] text-white/40">{mode.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+
+                    {deliveryType !== "ex_factory" && (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-white/50">Vehicle Number</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. DL 1LAB 4521"
+                            value={vehicleNumber}
+                            onChange={(e) => setVehicleNumber(e.target.value)}
+                            disabled={deal.status === "exchange_ready" || deal.status === "completed"}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 p-2 text-white placeholder-white/30"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-white/50">E-Way Bill / Transporter</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. EWB-9482019482 / Delhivery"
+                            value={ewayBill}
+                            onChange={(e) => setEwayBill(e.target.value)}
+                            disabled={deal.status === "exchange_ready" || deal.status === "completed"}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-black/40 p-2 text-white placeholder-white/30"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className="relative">
                     <div className="flex items-center justify-between">
                       <label className="font-bold text-white/80">Location / Meeting Point</label>
@@ -1345,6 +1449,14 @@ export default function DealRoomPage() {
                     className="flex items-center gap-1.5 rounded-xl bg-emerald-400 px-4 py-2 text-xs font-black text-[#03140e] hover:bg-emerald-300 shadow-lg"
                   >
                     <Award className="h-4 w-4" /> View Exchange Certificate
+                  </button>
+
+                  <button
+                    onClick={handleGenerateEpr}
+                    disabled={generatingEpr}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 px-4 py-2 text-xs font-black text-[#03140e] hover:opacity-95 shadow-lg shadow-emerald-500/20"
+                  >
+                    <Leaf className="h-4 w-4" /> {generatingEpr ? "Generating EPR..." : "📜 EPR Green Compliance Certificate"}
                   </button>
 
                   <Link
@@ -1662,6 +1774,14 @@ export default function DealRoomPage() {
         completedAt={deal.completed_at || deal.updated_at || ""}
         eventHash={latestEventHash}
       />
+
+      {/* EPR GREEN COMPLIANCE CERTIFICATE MODAL */}
+      {showEprModal && eprCertData && (
+        <EprComplianceModal
+          certificate={eprCertData}
+          onClose={() => setShowEprModal(false)}
+        />
+      )}
 
       {/* ECOTRUST PASSPORT MODAL */}
       <EcoTrustPassportModal

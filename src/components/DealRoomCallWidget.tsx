@@ -563,7 +563,38 @@ export default function DealRoomCallWidget({
         recordingUrl = publicUrlData.publicUrl;
       }
 
-      // Save log in deal_call_logs table
+      // Convert blob to base64 and analyze with Safe Call AI Guard
+      let analysisData: any = null;
+      try {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const base64 = (reader.result as string)?.split(",")?.[1] || "";
+            resolve(base64);
+          };
+          reader.readAsDataURL(audioBlob);
+        });
+
+        const audioBase64 = await base64Promise;
+        const res = await fetch("/api/calls/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioBase64,
+            audioMimeType: "audio/webm",
+            callerRole: isBuyer ? "buyer" : "seller",
+            receiverRole: isBuyer ? "seller" : "buyer",
+          }),
+        });
+        const json = await res.json();
+        if (json.success && json.analysis) {
+          analysisData = json.analysis;
+        }
+      } catch (analyzeErr) {
+        console.warn("AI Call audit error:", analyzeErr);
+      }
+
+      // Save log in deal_call_logs table with AI transcript and diversion audit
       await supabase.from("deal_call_logs").insert({
         deal_id: dealId,
         caller_id: userId,
@@ -571,7 +602,29 @@ export default function DealRoomCallWidget({
         duration_seconds: callDuration,
         recording_url: recordingUrl,
         status: "completed",
+        transcript: analysisData?.transcript || "Handover call session completed.",
+        is_diverted: Boolean(analysisData?.is_diverted),
+        diverted_party: analysisData?.diverted_party || null,
+        diversion_reason: analysisData?.diversion_reason || null,
+        diversion_snippet: analysisData?.diversion_snippet || null,
+        risk_score: analysisData?.risk_score || 0,
+        risk_level: analysisData?.risk_level || "LOW",
       });
+
+      // If diversion detected, also log an urgent communication risk alert for Admin
+      if (analysisData?.is_diverted) {
+        try {
+          await supabase.from("communication_risk_events").insert({
+            actor_id: counterpartyId,
+            deal_id: dealId,
+            risk_type: "OFF_PLATFORM_DIVERSION",
+            risk_score: analysisData.risk_score || 95,
+            confidence: "HIGH",
+            snippet_excerpt: analysisData.diversion_snippet || "Off-platform bypass attempt in call.",
+            review_status: "PENDING",
+          });
+        } catch {}
+      }
     } catch (saveErr) {
       console.warn("Save call recording error:", saveErr);
     }
