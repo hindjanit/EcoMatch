@@ -264,7 +264,7 @@ export default function CinematicCircularHero() {
                   href="/seller/add-product"
                   className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-black text-slate-950 shadow-md transition hover:bg-slate-200 hover:scale-105"
                 >
-                  List Surplus Lot <ArrowRight className="h-3.5 w-3.5" />
+                  List Surplus Materials <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               )}
               {activeStep === 2 && (
@@ -453,8 +453,8 @@ export default function CinematicCircularHero() {
                         </span>
                       </div>
 
-                      <p className="mt-2 text-[11px] font-bold text-white">Precision Servo Motor Lot</p>
-                      <p className="text-[9px] text-slate-400">Lot: 4 Units · 6061 Alloy · Tested</p>
+                      <p className="mt-2 text-[11px] font-bold text-white">Precision Servo Motor Set</p>
+                      <p className="text-[9px] text-slate-400">Pack: 4 Units · 6061 Alloy · Tested</p>
 
                       <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-1.5">
                         <div>

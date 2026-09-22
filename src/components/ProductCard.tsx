@@ -158,7 +158,7 @@ export default function ProductCard({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Lot Price
+                  Price
                 </span>
                 {product.is_negotiable && (
                   <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">

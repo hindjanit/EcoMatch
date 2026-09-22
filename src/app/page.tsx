@@ -345,7 +345,7 @@ export default function Home() {
                     <p className="text-[11px] font-black uppercase tracking-[0.13em] text-[#63766c]">{product.material || product.category}</p>
                     <h3 className="mt-2 min-h-12 text-lg font-black leading-tight tracking-[-0.02em]">{product.title}</h3>
                     <div className="mt-5 flex items-end justify-between border-t border-[#10251b]/10 pt-4">
-                      <div><p className="text-[10px] font-bold uppercase text-[#738279]">Lot price</p><p className="text-xl font-black">{formatPrice(product.price)}</p></div>
+                      <div><p className="text-[10px] font-bold uppercase text-[#738279]">Price</p><p className="text-xl font-black">{formatPrice(product.price)}</p></div>
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#10251b] text-white transition group-hover:bg-[#b9ff66] group-hover:text-[#10251b]"><ArrowUpRight className="h-4 w-4" /></div>
                     </div>
                   </div>

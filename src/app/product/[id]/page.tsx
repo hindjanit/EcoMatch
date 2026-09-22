@@ -106,7 +106,7 @@ export default function ProductDetailsPage() {
   const [dealLoading, setDealLoading] = useState(false);
   const [dealMessage, setDealMessage] = useState("");
 
-  // Partial Lot Splitting State
+  // Custom Quantity Split State
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [isSplitLot, setIsSplitLot] = useState<boolean>(false);
 
@@ -641,7 +641,7 @@ export default function ProductDetailsPage() {
                   {product.is_negotiable ? "Price Negotiable" : "Fixed Price"}
                 </span>
                 <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Verified Lot
+                  <ShieldCheck className="h-3.5 w-3.5" /> Verified Item
                 </span>
               </div>
 
@@ -741,7 +741,7 @@ export default function ProductDetailsPage() {
                     <div className="flex justify-between text-[9px] text-white/40 font-mono">
                       <span>1 {product.quantity_unit}</span>
                       <span>{Math.round(totalQty / 2)} {product.quantity_unit}</span>
-                      <span>Full Lot ({totalQty} {product.quantity_unit})</span>
+                      <span>Full Quantity ({totalQty} {product.quantity_unit})</span>
                     </div>
                   </div>
 
@@ -811,7 +811,7 @@ export default function ProductDetailsPage() {
                     className="w-full flex items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
                   >
                     <TrendingDown className="h-4 w-4" />
-                    <span>{selectedQuantity !== totalQty ? "Make Offer on Split Qty" : "Make an Offer"}</span>
+                    <span>{selectedQuantity !== totalQty ? "Make Offer on Custom Qty" : "Make an Offer"}</span>
                   </button>
                 )}
 

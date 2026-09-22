@@ -84,6 +84,10 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
   const [demoNotice, setDemoNotice] = useState("");
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null);
+  const recordingStartedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -172,6 +176,7 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
             await flushIceCandidates();
             setCallState("connected");
             startTimer();
+            startGlobalCallRecording();
           } catch (e) {
             console.error("Set answer error:", e);
           }
@@ -306,6 +311,158 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
     }
   }
 
+  // Web Audio Stream Mixer & Call Recorder for Marketplace & Direct Calls
+  function startGlobalCallRecording() {
+    try {
+      if (recordingStartedRef.current) return;
+      recordingStartedRef.current = true;
+      audioChunksRef.current = [];
+
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (!recordingAudioCtxRef.current || recordingAudioCtxRef.current.state === "closed") {
+        recordingAudioCtxRef.current = new AudioCtx();
+      }
+      const ctx = recordingAudioCtxRef.current;
+      const dest = ctx.createMediaStreamDestination();
+
+      if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
+        try {
+          const localSrc = ctx.createMediaStreamSource(localStreamRef.current);
+          localSrc.connect(dest);
+        } catch (e) {}
+      }
+
+      if (remoteStreamRef.current && remoteStreamRef.current.getAudioTracks().length > 0) {
+        try {
+          const remoteSrc = ctx.createMediaStreamSource(remoteStreamRef.current);
+          remoteSrc.connect(dest);
+        } catch (e) {}
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+
+      const recorder = new MediaRecorder(dest.stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        await saveGlobalCallRecording(audioChunksRef.current, duration);
+      };
+
+      recorder.start(1000);
+    } catch (err) {
+      console.warn("Global call recording start error:", err);
+    }
+  }
+
+  async function saveGlobalCallRecording(chunks: Blob[], callDuration: number) {
+    if (chunks.length === 0 || callDuration < 1) return;
+    try {
+      const audioBlob = new Blob(chunks, { type: "audio/webm" });
+      const fileName = `direct_calls/${Date.now()}_call_${userId.slice(0, 6)}.webm`;
+
+      // 1. Upload audio recording to Supabase Storage
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from("deal_recordings")
+        .upload(fileName, audioBlob, { contentType: "audio/webm", upsert: true });
+
+      let recordingUrl: string | null = null;
+      if (!uploadErr && uploadData) {
+        const { data: urlData } = supabase.storage.from("deal_recordings").getPublicUrl(fileName);
+        recordingUrl = urlData.publicUrl;
+      }
+
+      // 2. Transcribe & run AI anti-diversion detection via /api/calls/analyze
+      let analysisData: any = null;
+      try {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const b64 = (reader.result as string)?.split(",")?.[1] || "";
+            resolve(b64);
+          };
+          reader.readAsDataURL(audioBlob);
+        });
+
+        const audioBase64 = await base64Promise;
+        const res = await fetch("/api/calls/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioBase64,
+            audioMimeType: "audio/webm",
+            callerRole: "buyer",
+            receiverRole: "seller",
+          }),
+        });
+        const json = await res.json();
+        if (json.success && json.analysis) {
+          analysisData = json.analysis;
+        }
+      } catch (analyzeErr) {
+        console.warn("Call analysis API error:", analyzeErr);
+      }
+
+      // 3. Save to deal_call_logs table so Admin immediately sees the recording & AI classification
+      await supabase.from("deal_call_logs").insert({
+        deal_id: dealId || null,
+        caller_id: userId,
+        receiver_id: counterpartyId,
+        duration_seconds: callDuration,
+        recording_url: recordingUrl,
+        status: "completed",
+        transcript: analysisData?.transcript || "Direct marketplace call session completed.",
+        is_diverted: Boolean(analysisData?.is_diverted),
+        diverted_party: analysisData?.diverted_party || null,
+        diversion_reason: analysisData?.diversion_reason || null,
+        diversion_snippet: analysisData?.diversion_snippet || null,
+        risk_score: analysisData?.risk_score || 0,
+        risk_level: analysisData?.risk_level || "LOW",
+      });
+
+      // 4. Also update calls table
+      if (activeCallId) {
+        try {
+          await supabase.from("calls").update({
+            recording_url: recordingUrl,
+            transcript: analysisData?.transcript || "Direct call completed.",
+            is_diverted: Boolean(analysisData?.is_diverted),
+            diverted_party: analysisData?.diverted_party || null,
+            diversion_reason: analysisData?.diversion_reason || null,
+            diversion_snippet: analysisData?.diversion_snippet || null,
+            risk_score: analysisData?.risk_score || 0,
+            risk_level: analysisData?.risk_level || "LOW",
+          }).eq("id", activeCallId);
+        } catch {}
+      }
+
+      // 5. If diversion detected, create urgent admin alert in communication_risk_events
+      if (analysisData?.is_diverted) {
+        try {
+          await supabase.from("communication_risk_events").insert({
+            actor_id: counterpartyId,
+            call_id: activeCallId || null,
+            deal_id: dealId || null,
+            risk_type: "OFF_PLATFORM_DIVERSION",
+            risk_score: analysisData.risk_score || 95,
+            confidence: "HIGH",
+            snippet_excerpt: analysisData.diversion_snippet || "Off-platform diversion attempt detected in direct call.",
+            review_status: "PENDING",
+          });
+        } catch {}
+      }
+    } catch (saveErr) {
+      console.warn("Save global call recording error:", saveErr);
+    }
+  }
+
   function startTimer() {
     setDuration(0);
     durationTimerRef.current = setInterval(() => {
@@ -328,6 +485,16 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
   }
 
   function cleanupCall() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
+    }
+    recordingStartedRef.current = false;
+    if (recordingAudioCtxRef.current) {
+      recordingAudioCtxRef.current.close().catch(() => {});
+      recordingAudioCtxRef.current = null;
+    }
     stopRingtone();
     clearTimeout(noAnswerTimerRef.current as NodeJS.Timeout);
     clearInterval(durationTimerRef.current as NodeJS.Timeout);
@@ -546,6 +713,7 @@ export default function GlobalCallingProvider({ children }: { children: React.Re
 
     setCallState("connected");
     startTimer();
+    startGlobalCallRecording();
   }
 
   // DECLINE INCOMING CALL

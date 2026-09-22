@@ -91,6 +91,9 @@ export default function MarketplacePage() {
   const [buyerLongitude, setBuyerLongitude] = useState<number | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
+  const [locationSearchInput, setLocationSearchInput] = useState("");
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -185,6 +188,34 @@ export default function MarketplacePage() {
     }
 
     setLoading(false);
+  }
+
+  async function handleSearchLocation(query: string) {
+    setLocationSearchInput(query);
+    if (!query || query.trim().length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+    setLocationSearching(true);
+    try {
+      const res = await fetch(`/api/location/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data?.suggestions) {
+        setLocationSuggestions(data.suggestions);
+      }
+    } catch (e) {
+      console.warn("Location query error:", e);
+    } finally {
+      setLocationSearching(false);
+    }
+  }
+
+  function handleSelectSuggestion(sug: any) {
+    setBuyerLatitude(sug.latitude);
+    setBuyerLongitude(sug.longitude);
+    setLocationSearchInput(sug.label);
+    setLocationSuggestions([]);
+    setLocationMessage(`✓ Set to: ${sug.label.slice(0, 35)}...`);
   }
 
   function handleUseBuyerLocation() {
@@ -435,13 +466,37 @@ export default function MarketplacePage() {
                   onChange={(e) => setDistance(Number(e.target.value))}
                   className="w-full accent-emerald-400"
                 />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Type City / Pin / Area..."
+                    value={locationSearchInput}
+                    onChange={(e) => handleSearchLocation(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-[#03110b] p-2 text-xs text-white placeholder-white/40 focus:border-emerald-400 focus:outline-none"
+                  />
+                  {locationSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-xl border border-emerald-500/30 bg-[#051c13] shadow-2xl">
+                      {locationSuggestions.map((sug, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectSuggestion(sug)}
+                          className="w-full p-2 text-left text-[11px] text-white hover:bg-emerald-500/20 border-b border-white/5 truncate block"
+                        >
+                          📍 {sug.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={handleUseBuyerLocation}
                   disabled={locationLoading}
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-500/20"
                 >
                   <MapPin className="h-3 w-3" />
-                  {locationLoading ? "Acquiring GPS..." : "Use My Live GPS Location"}
+                  {locationLoading ? "Acquiring GPS..." : "Auto-detect via GPS"}
                 </button>
                 {locationMessage && (
                   <p className="text-[10px] text-emerald-400/80 text-center">{locationMessage}</p>
