@@ -71,6 +71,7 @@ type DealCallLog = {
   risk_score?: number | null;
   risk_level?: string | null;
   admin_action?: string | null;
+  call_type?: "handover" | "marketplace" | "chat" | "general" | string;
   deal?: {
     deal_code: string;
     agreed_price: number;
@@ -622,7 +623,15 @@ async function checkAdminAndLoad() {
   }
 
   const divertedCallLogs = callLogs.filter((c) => c.is_diverted || (c.risk_score && c.risk_score >= 70));
-  const displayedCalls = callFilter === "diverted" ? divertedCallLogs : callFilter === "clean" ? callLogs.filter((c) => !c.is_diverted) : callLogs;
+  const displayedCalls = callFilter === "diverted"
+    ? divertedCallLogs
+    : callFilter === ("handover" as any)
+    ? callLogs.filter((c) => c.call_type === "handover" || (c.deal && c.deal.deal_code && !c.deal.deal_code.includes("DIRECT")))
+    : callFilter === ("direct" as any)
+    ? callLogs.filter((c) => c.call_type !== "handover" && (!c.deal || !c.deal.deal_code || c.deal.deal_code.includes("DIRECT")))
+    : callFilter === "clean"
+    ? callLogs.filter((c) => !c.is_diverted)
+    : callLogs;
 
   return (
     <main className="eco-page min-h-screen text-white pb-24 relative overflow-hidden">
@@ -1170,10 +1179,10 @@ async function checkAdminAndLoad() {
               <div>
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
                   <PhoneCall className="h-5 w-5 text-sky-400" />
-                  Recorded Handover Voice Calls
+                  All Platform Voice Calls (Normal & Deal Handover)
                 </h2>
                 <p className="mt-1 text-xs text-white/60">
-                  Listen to in-app buyer/seller audio streams. Enforce 2-strike off-platform diversion policies.
+                  Audit every in-app call: Normal direct marketplace inquiries and formal escrow Deal Room handover calls with AI diversion grading.
                 </p>
               </div>
 
@@ -1192,7 +1201,7 @@ async function checkAdminAndLoad() {
               </div>
             </div>
 
-            {/* Filter Tabs */}
+            {/* Filter & Classification Tabs */}
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
               <button
                 type="button"
@@ -1201,7 +1210,7 @@ async function checkAdminAndLoad() {
                   callFilter === "all" ? "bg-sky-400 text-[#021824]" : "bg-white/5 text-white/70 hover:bg-white/10"
                 }`}
               >
-                All Calls ({callLogs.length})
+                All Platform Calls ({callLogs.length})
               </button>
               <button
                 type="button"
@@ -1212,6 +1221,24 @@ async function checkAdminAndLoad() {
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 🚨 Diverted Calls ({divertedCallLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCallFilter("handover" as any)}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition ${
+                  callFilter === ("handover" as any) ? "bg-purple-500 text-white" : "bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                🤝 Deal Handover Calls ({callLogs.filter(c => c.call_type === "handover" || (c.deal && c.deal.deal_code && !c.deal.deal_code.includes("DIRECT"))).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCallFilter("direct" as any)}
+                className={`rounded-xl px-4 py-1.5 text-xs font-bold transition ${
+                  callFilter === ("direct" as any) ? "bg-teal-500 text-white" : "bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                💬 Normal Direct Calls ({callLogs.filter(c => c.call_type !== "handover" && (!c.deal || !c.deal.deal_code || c.deal.deal_code.includes("DIRECT"))).length})
               </button>
               <button
                 type="button"
@@ -1352,9 +1379,20 @@ async function checkAdminAndLoad() {
                       {/* Deal & Call Header */}
                       <div className="flex items-start justify-between border-b border-white/10 pb-4">
                         <div>
-                          <span className="rounded-md bg-sky-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-sky-300">
-                            Deal #{log.deal?.deal_code || log.deal_id.slice(0, 8)}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
+                              log.call_type === "handover" || (log.deal && log.deal.deal_code && !log.deal.deal_code.includes("DIRECT"))
+                                ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                : "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                            }`}>
+                              {log.call_type === "handover" || (log.deal && log.deal.deal_code && !log.deal.deal_code.includes("DIRECT"))
+                                ? "🤝 Handover Call"
+                                : "💬 Direct Call"}
+                            </span>
+                            <span className="rounded-md bg-sky-500/20 px-2 py-0.5 text-[10px] font-mono text-sky-300">
+                              #{log.deal?.deal_code || log.deal_id.slice(0, 8)}
+                            </span>
+                          </div>
                           <h4 className="mt-2 text-base font-bold text-white">
                             {log.deal?.product?.title || "Material Lot Handover"}
                           </h4>
