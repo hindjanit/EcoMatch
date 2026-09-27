@@ -7,8 +7,8 @@ export const vehicles = {
 export type Vehicle = keyof typeof vehicles;
 export function estimateDelivery(distance: number, weight: number, vehicle: Vehicle, productRupees: number) {
   const rate = vehicles[vehicle];
-  if (!rate || ![distance, weight, productRupees].every(Number.isFinite) || distance < 1 || distance > 200 || weight < 1 || weight > rate.capacity || productRupees < 0 || productRupees > 10_000_000) {
-    throw new Error('Use 1–200 km, a weight within vehicle capacity, and a valid product amount.');
+  if (!rate || ![distance, weight, productRupees].every(Number.isFinite) || distance < 0.1 || distance > 200 || weight < 1 || weight > rate.capacity || productRupees < 0 || productRupees > 10_000_000) {
+    throw new Error('Use a route within 200 km, a weight within vehicle capacity, and a valid product amount.');
   }
   const basePaise = rate.base * 100;
   const distancePaise = Math.round(distance * rate.perKm * 100);

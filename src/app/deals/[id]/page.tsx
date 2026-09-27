@@ -1036,7 +1036,7 @@ export default function DealRoomPage() {
           </div>
         </div>
 
-        <SecureDeliveryPanel dealId={deal.id} userId={userId} productAmount={effectivePrice} onModeChange={setSecureMode} />
+        <SecureDeliveryPanel dealId={deal.id} userId={userId} onModeChange={setSecureMode} />
         {/* Live Status Messages */}
         {message && (
           <div className="mt-6 rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-4 text-xs font-bold text-emerald-300 shadow-lg animate-in fade-in">
