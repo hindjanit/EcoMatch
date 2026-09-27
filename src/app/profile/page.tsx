@@ -101,6 +101,10 @@ export default function ProfilePage() {
     setLoading(false);
   }
 
+  useEffect(() => {
+    void loadProfile();
+  }, []);
+
   if (loading) {
     return (
       <main className="eco-page min-h-screen text-white">
@@ -169,7 +173,7 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <>
-                      <ShieldAlert className="h-3.5 w-3.5 text-amber-400" /> KYC Unverified
+                      <ShieldAlert className="h-3.5 w-3.5 text-amber-400" /> {profile?.verification_status === "verified_demo" ? "DEMO VERIFIED" : "KYC Unverified"}
                     </>
                   )}
                 </span>

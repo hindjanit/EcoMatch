@@ -159,7 +159,7 @@ export default function ProductDetailsPage() {
     setSelectedQuantity(totalQty);
 
     const { data: sellerData } = await supabase
-      .from("profiles")
+      .from("public_profiles")
       .select("verification_status, trust_score, full_name, location_name, latitude, longitude")
       .eq("id", productData.seller_id)
       .maybeSingle();

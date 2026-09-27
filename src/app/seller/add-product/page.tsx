@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { trustPost } from "@/lib/trust/client";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { MARKETPLACE_CATEGORIES, PRODUCT_CONDITIONS } from "@/lib/catalog";
@@ -774,7 +775,7 @@ export default function AddProductPage() {
         .from("products")
         .select("id", { count: "exact", head: true })
         .eq("seller_id", user.id)
-        .in("status", ["pending", "approved"]);
+        .in("status", ["pending", "pending_review", "changes_requested", "approved", "reserved"]);
 
       if (activeCountError) {
         throw new Error(
@@ -937,9 +938,12 @@ export default function AddProductPage() {
         }
       }
 
-      setMessage(
-        "✅ Product submitted successfully! It is waiting for admin verification.",
-      );
+      try {
+        const result = await trustPost('/api/trust/listings', { productId: String(product.id) });
+        setMessage(result.status === 'approved' ? 'Listing automatically approved and visible in the marketplace.' : 'Listing submitted for admin review. See the safety checks in your dashboard.');
+      } catch {
+        setMessage('Listing saved. Automated safety review is unavailable; admin review is required before publication.');
+      }
 
       setTimeout(() => {
         router.push("/seller/dashboard");

@@ -125,7 +125,7 @@ export default function ChatInboxPage() {
       const [productsResult, profilesResult, messagesResult] = await Promise.all([
         supabase.from("products").select("id,title,category,price").in("id", productIds),
         supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("id,full_name,verification_status,avatar_url")
           .in("id", profileIds),
         supabase

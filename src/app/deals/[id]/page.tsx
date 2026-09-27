@@ -12,7 +12,9 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import ESGCertificateModal from "@/components/ESGCertificateModal";
 import EprComplianceModal, { EprCertificateData } from "@/components/EprComplianceModal";
 import { Truck } from "lucide-react";
+import SecureDeliveryPanel from "@/components/SecureDeliveryPanel";
 import DealRoomCallWidget from "@/components/DealRoomCallWidget";
+import { generateQrSvg } from "@/lib/trust/qr";
 import VerifiedExchangeCertificateModal from "@/components/VerifiedExchangeCertificateModal";
 import EcoTrustPassportModal from "@/components/EcoTrustPassportModal";
 import HandoverQRScannerModal from "@/components/HandoverQRScannerModal";
@@ -51,6 +53,8 @@ import {
 } from "lucide-react";
 
 type Deal = {
+  fulfilment_mode?: string;
+  secure_state?: string;
   id: string;
   deal_code: string;
   product_id: number | string;
@@ -159,6 +163,7 @@ export default function DealRoomPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [secureMode, setSecureMode] = useState(false);
   const [meetingLocation, setMeetingLocation] = useState("");
   const [meetingLat, setMeetingLat] = useState<number | null>(null);
   const [meetingLng, setMeetingLng] = useState<number | null>(null);
@@ -212,8 +217,8 @@ export default function DealRoomPage() {
   useEffect(() => {
     const q = meetingLocation.trim();
     if (locationSelected || q.length < 3 || deal?.status === "exchange_ready" || deal?.status === "completed") {
-      setLocationSuggestions([]);
-      return;
+      const clearTimer = window.setTimeout(() => setLocationSuggestions([]), 0);
+      return () => window.clearTimeout(clearTimer);
     }
 
     const controller = new AbortController();
@@ -339,6 +344,7 @@ export default function DealRoomPage() {
 
   useEffect(() => {
     if (!deal) return;
+    const syncTimer = window.setTimeout(() => {
     setMeetingLocation(deal.meeting_location || "");
     setMeetingLat(deal.meeting_latitude);
     setMeetingLng(deal.meeting_longitude);
@@ -367,6 +373,8 @@ export default function DealRoomPage() {
         colors: ["#10b981", "#34d399", "#a7f3d0", "#ffffff"],
       });
     }
+    }, 0);
+    return () => window.clearTimeout(syncTimer);
   }, [deal?.id, deal?.meeting_at, deal?.meeting_location, deal?.status, deal?.qr_verified_at, deal?.proximity_verified]);
 
   // Realtime Supabase Channel Subscription (instant multi-device sync)
@@ -419,17 +427,23 @@ export default function DealRoomPage() {
 
   // Render QR code
   useEffect(() => {
-    const payloadText = dynamicQrToken || (generatedCode ? JSON.stringify({ type: "ECOMATCH_EXCHANGE", dealId: deal?.id, code: generatedCode }) : "");
-    if (!payloadText || !deal || !qrLibReady || !qrRef.current || !window.QRCode) return;
+    const payloadText = dynamicQrToken;
+    if (!payloadText || !deal || !qrRef.current) return;
 
-    qrRef.current.innerHTML = "";
-    new window.QRCode(qrRef.current, {
-      text: payloadText,
-      width: 190,
-      height: 190,
-      colorDark: "#03140e",
-      colorLight: "#f0fdf4",
-    });
+    try {
+      qrRef.current.innerHTML = generateQrSvg(payloadText, 190);
+    } catch {
+      if (qrLibReady && window.QRCode) {
+        qrRef.current.innerHTML = "";
+        new window.QRCode(qrRef.current, {
+          text: payloadText,
+          width: 190,
+          height: 190,
+          colorDark: "#03140e",
+          colorLight: "#f0fdf4",
+        });
+      }
+    }
   }, [dynamicQrToken, generatedCode, deal?.id, qrLibReady]);
 
   async function loadDealRoom(quiet = false) {
@@ -469,7 +483,7 @@ export default function DealRoomPage() {
         .maybeSingle(),
       supabase.from("product_images").select("image_url").eq("product_id", current.product_id).limit(1),
       supabase
-        .from("profiles")
+        .from("public_profiles")
         .select("id,full_name,verification_status")
         .in("id", [current.buyer_id, current.seller_id]),
       supabase
@@ -650,16 +664,17 @@ export default function DealRoomPage() {
   async function generateDynamicQrToken() {
     if (!deal) return;
     try {
-      const { data } = await supabase.rpc("generate_secure_handover_qr", {
+      const { data, error } = await supabase.rpc("generate_secure_handover_qr", {
         p_deal_id: deal.id,
       });
+      if (error) throw error;
       if (data) {
         setDynamicQrToken(String(data));
         setQrExpiresIn(300);
       }
     } catch {
-      // Fallback
-      setDynamicQrToken(`ECMQR-${deal.id.slice(0, 8)}-${Date.now()}`);
+      setDynamicQrToken("");
+      setError("Could not generate a secure QR. Retry or use the server-generated OTP.");
     }
   }
 
@@ -669,22 +684,15 @@ export default function DealRoomPage() {
     setActionLoading(true);
     setError("");
     try {
-      const { error: qrErr } = await supabase.rpc("verify_secure_handover_qr", {
+      const { data: qrResult, error: qrErr } = await supabase.rpc("verify_secure_handover_qr", {
         p_deal_id: deal.id,
         p_raw_token: token,
       });
-      if (qrErr) {
-        // Safe check for demo token
-        if (token.startsWith("ECMQR-DEMO") || token.includes(deal.id.slice(0, 6))) {
-          await supabase.from("deal_requests").update({ qr_verified_at: new Date().toISOString() }).eq("id", deal.id);
-          setQrVerified(true);
-          setMessage("✓ [DEMO] QR Handover verified successfully!");
-        } else {
-          setError(qrErr.message);
-        }
+      if (qrErr || qrResult !== true) {
+        setError(qrErr?.message || "Invalid, expired or already used QR token.");
       } else {
         setQrVerified(true);
-        setMessage("🎉 Dynamic QR Handover code verified successfully!");
+        setMessage("QR verified. Both parties must now confirm the handover.");
       }
       await loadDealRoom(true);
     } catch (e) {
@@ -995,7 +1003,7 @@ export default function DealRoomPage() {
                 )}
 
                 {/* Offer Slider */}
-                {["requested", "accepted"].includes(deal.status) && (
+                {!secureMode && ["requested", "accepted"].includes(deal.status) && (
                   <button
                     onClick={() => {
                       setCounterPrice(effectivePrice);
@@ -1028,6 +1036,7 @@ export default function DealRoomPage() {
           </div>
         </div>
 
+        <SecureDeliveryPanel dealId={deal.id} userId={userId} onModeChange={setSecureMode} />
         {/* Live Status Messages */}
         {message && (
           <div className="mt-6 rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-4 text-xs font-bold text-emerald-300 shadow-lg animate-in fade-in">
@@ -1040,6 +1049,7 @@ export default function DealRoomPage() {
           </div>
         )}
 
+        {!secureMode && deal.fulfilment_mode !== "secure_delivery" && <div id="self-pickup">
         {/* 5-STAGE CYBER-INDUSTRIAL TIMELINE */}
         <div className="mt-8 rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-6 shadow-xl backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -1169,7 +1179,7 @@ export default function DealRoomPage() {
                           key={mode.key}
                           type="button"
                           disabled={deal.status === "exchange_ready" || deal.status === "completed"}
-                          onClick={() => setDeliveryType(mode.key as any)}
+                          onClick={() => setDeliveryType(mode.key as "ex_factory" | "seller_delivery" | "logistics_partner")}
                           className={`rounded-xl p-2.5 text-left border transition ${
                             deliveryType === mode.key
                               ? "border-sky-400 bg-sky-500/20 text-white shadow-md shadow-sky-500/20"
@@ -1534,7 +1544,7 @@ export default function DealRoomPage() {
                 </div>
 
                 <p className="text-xs text-white/60">
-                  Scan the seller's dynamic QR code with your camera, or enter the 6-digit OTP shown by the seller.
+                  Scan the seller&apos;s dynamic QR code with your camera, or enter the 6-digit OTP shown by the seller.
                 </p>
 
                 {/* Scan Button */}
@@ -1612,6 +1622,7 @@ export default function DealRoomPage() {
             </div>
           </div>
         </div>
+        </div>}
       </div>
 
       {/* PRICE COUNTER SLIDER MODAL */}

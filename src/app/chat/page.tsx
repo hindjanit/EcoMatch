@@ -308,7 +308,7 @@ function ChatContent() {
     const counterpartyRole: "Seller" | "Buyer" = isBuyerUser ? "Seller" : "Buyer";
 
     const { data: cpData } = await supabase
-      .from("profiles")
+      .from("public_profiles")
       .select("id, full_name, location_name, latitude, longitude, verification_status, avatar_url")
       .eq("id", counterpartyId)
       .maybeSingle();
@@ -351,7 +351,7 @@ function ChatContent() {
 
     // Fetch seller profile for location and distance
     const { data: sellerData } = await supabase
-      .from("profiles")
+      .from("public_profiles")
       .select("id, full_name, location_name, latitude, longitude, verification_status")
       .eq("id", activeConv.seller_id)
       .maybeSingle();

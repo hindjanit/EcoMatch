@@ -18,7 +18,10 @@ import {
   PackageCheck,
   Clock,
   ArrowRight,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
+import { trustPost } from "@/lib/trust/client";
 
 type Product = {
   id: string;
@@ -28,6 +31,10 @@ type Product = {
   quantity: number;
   quantity_unit: string;
   status: string;
+  safety_score?: number | null;
+  approval_method?: string | null;
+  rejection_reason?: string | null;
+  moderation_notes?: string | null;
   created_at: string;
 };
 
@@ -46,11 +53,31 @@ export default function SellerDashboard() {
   const [images, setImages] = useState<Record<string, ProductImage[]>>({});
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [recheckingId, setRecheckingId] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     loadProducts();
   }, []);
+
+  async function recheckListing(productId: string) {
+    setRecheckingId(productId);
+    setReviewNotice("");
+    try {
+      const res = await trustPost("/api/trust/listings", { productId });
+      setReviewNotice(
+        res.status === "approved"
+          ? "Listing safety review completed: Automatically approved!"
+          : "Listing submitted for administrative moderation queue."
+      );
+      await loadProducts();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Safety review retry failed.");
+    } finally {
+      setRecheckingId(null);
+    }
+  }
 
   async function loadProducts() {
     setLoading(true);
@@ -150,6 +177,12 @@ export default function SellerDashboard() {
           </Link>
         </div>
 
+        {reviewNotice && (
+          <div className="mt-6 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 p-4 text-xs font-bold text-emerald-300">
+            ✓ {reviewNotice}
+          </div>
+        )}
+
         {error && (
           <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/15 p-4 text-xs font-bold text-red-300">
             {error}
@@ -244,7 +277,7 @@ export default function SellerDashboard() {
                       </div>
 
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-300">
                             {product.category}
                           </span>
@@ -255,17 +288,42 @@ export default function SellerDashboard() {
                                 : "bg-amber-500/20 text-amber-300"
                             }`}
                           >
-                            {product.status}
+                            {product.status.replaceAll('_', ' ')}
                           </span>
+                          {product.approval_method === "ai_auto" && (
+                            <span className="rounded bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-300">
+                              AI Auto-Approved
+                            </span>
+                          )}
+                          {product.safety_score !== null && product.safety_score !== undefined && (
+                            <span className="rounded border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                              Safety: {product.safety_score}/100
+                            </span>
+                          )}
                         </div>
                         <h4 className="mt-1 text-base font-bold text-white">{product.title}</h4>
                         <p className="mt-0.5 text-xs text-white/50">
                           ₹{Number(product.price).toLocaleString("en-IN")} · Available: {product.quantity} {product.quantity_unit || "units"}
                         </p>
+                        {product.rejection_reason && (
+                          <p className="mt-1 text-xs text-amber-300">
+                            Feedback: {product.rejection_reason}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {["pending", "pending_review", "changes_requested"].includes(product.status) && (
+                        <button
+                          onClick={() => void recheckListing(product.id)}
+                          disabled={recheckingId === product.id}
+                          className="flex items-center gap-1 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${recheckingId === product.id ? "animate-spin" : ""}`} />
+                          <span>{recheckingId === product.id ? "Reviewing..." : "Re-check Safety"}</span>
+                        </button>
+                      )}
                       <Link
                         href={`/product/${product.id}`}
                         className="flex items-center gap-1 rounded-xl border border-white/15 bg-white/5 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/10"

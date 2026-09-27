@@ -636,6 +636,7 @@ async function checkAdminAndLoad() {
   return (
     <main className="eco-page min-h-screen text-white pb-24 relative overflow-hidden">
       <Navbar />
+      <a href="/admin/trust" className="mx-auto my-5 block min-h-12 max-w-6xl rounded-xl bg-lime-300 p-4 font-bold text-emerald-950">Open Trust Center → AI listings, call safety & Secure Delivery</a>
 
       <div className="eco-orb eco-orb-one" />
       {/* ADMIN CONTENT */}

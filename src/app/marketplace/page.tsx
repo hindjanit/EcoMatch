@@ -159,7 +159,7 @@ export default function MarketplacePage() {
         .in("product_id", productIds)
         .eq("verification_status", "approved"),
       supabase
-        .from("profiles")
+        .from("public_profiles")
         .select("id, latitude, longitude, location_name, verification_status, trust_score")
         .in("id", sellerIds),
     ]);
