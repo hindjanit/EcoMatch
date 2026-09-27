@@ -18,7 +18,7 @@ This release upgrades EcoMatch with three industrial-grade trust pillars while s
 3. **EcoMatch Secure Delivery Escrow & Provenance**:
    - Server-side fee calculation using integer paise (`productPaise`, `deliveryPaise`, 10% platform buffer `servicePaise`, refundable seller security deposit `depositPaise`).
    - Payment hold abstraction with strict state machine (`FULFILMENT_SELECTED` $\to$ `DELIVERY_QUOTED` $\to$ `BUYER_PAYMENT_PENDING` $\to$ `SELLER_DEPOSIT_PENDING` $\to$ `PICKUP_EVIDENCE_PENDING` $\to$ `DRIVER_ASSIGNED` $\to$ `IN_TRANSIT` $\to$ `DELIVERY_EVIDENCE_PENDING` $\to$ `BUYER_CONFIRMATION_PENDING` $\to$ `PAYMENT_RELEASE_PENDING` $\to$ `COMPLETED`).
-   - Single-use 6-digit OTP and 10-minute rotating tokens with standalone, zero-dependency inline SVG QR generation.
+   - Single-use 6-digit OTP and expiring tokens with inline SVG QR generation using the QR encoding library. Phase 19 repairs self-pickup QR verification and requires separate buyer and seller confirmations.
    - Tamper-evident SHA-256 ownership chaining linked directly into `ownership_events` on final settlement.
    - Dispute freeze protocol preventing settlement while disputes are active, supporting reviewed returns with partial or full seller security deposit adjustments.
 
@@ -31,12 +31,9 @@ This release upgrades EcoMatch with three industrial-grade trust pillars while s
 - Pre-existing Phase 1–17 tables (`products`, `profiles`, `deal_requests`, `ownership_events`, `calls`, `deal_disputes`, `deal_audit_logs`).
 
 ### Running the Migration
-Apply `supabase/phase18_trust_secure_delivery.sql` via Supabase SQL Editor or Supabase CLI:
-```bash
-supabase db push
-# or in the Supabase Dashboard:
-# Paste and execute contents of supabase/phase18_trust_secure_delivery.sql
-```
+Inspect the existing schema with `supabase/deployment_preflight.sql`, then apply phase 18 followed by `supabase/phase19_identity_and_audit_repairs.sql` through the SQL Editor or your managed migration process. Validate against staging first. Do not rerun phase 19 if its identity sessions table already exists; inspect the deployed definitions first.
+
+These files are outside `supabase/migrations/`, so `supabase db push` does not discover them automatically. See `docs/identity-and-audit-repairs.md` for phase 19 setup and test limits.
 
 ### Granted Table Privileges & RLS
 - All new tables (`listing_ai_reviews`, `delivery_quotes`, `deliveries`, `payments`, `seller_security_deposits`, `exchange_evidence`, `delivery_tokens`, `delivery_returns`, `call_transcripts`, `call_recordings`, `trust_audit_logs`, `trust_idempotency`, `trust_rate_limits`) have RLS enabled.
@@ -65,6 +62,7 @@ LOGISTICS_PROVIDER=porter # (or configured enterprise logistics adapter)
 PAYMENT_PROVIDER=razorpay # (or configured verified payment provider)
 ```
 - The codebase **fails closed**: no guessed endpoints or fake transactions occur.
+- These provider names are intended configuration only: the current Porter adapter is a placeholder and no production payment adapter is implemented. Setting these variables alone does not activate an integration.
 - If credentials or configurations are missing, clean 503/400 errors are returned to the user without platform crashes.
 
 ---
