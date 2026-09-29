@@ -13,6 +13,7 @@ import ESGCertificateModal from "@/components/ESGCertificateModal";
 import EprComplianceModal, { EprCertificateData } from "@/components/EprComplianceModal";
 import { Truck } from "lucide-react";
 import SecureDeliveryPanel from "@/components/SecureDeliveryPanel";
+import { showcaseName } from "@/lib/showcase-display";
 import DealRoomCallWidget from "@/components/DealRoomCallWidget";
 import { generateQrSvg } from "@/lib/trust/qr";
 import VerifiedExchangeCertificateModal from "@/components/VerifiedExchangeCertificateModal";
@@ -497,8 +498,9 @@ export default function DealRoomPage() {
     setImage((imageResult.data || [])[0]?.image_url || null);
 
     const profiles = (profilesResult.data || []) as Profile[];
-    setBuyer(profiles.find((p) => p.id === current.buyer_id) || null);
-    setSeller(profiles.find((p) => p.id === current.seller_id) || null);
+    const maskProfile = (profile: Profile | undefined, fallback: string) => profile ? { ...profile, full_name: showcaseName(profile.full_name, fallback) } : null;
+    setBuyer(maskProfile(profiles.find((p) => p.id === current.buyer_id), "EcoMatch Buyer"));
+    setSeller(maskProfile(profiles.find((p) => p.id === current.seller_id), "EcoMatch Seller"));
 
     if (ledgerResult.data?.event_hash) {
       setLatestEventHash(ledgerResult.data.event_hash);

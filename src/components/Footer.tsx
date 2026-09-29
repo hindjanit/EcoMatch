@@ -99,13 +99,13 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Col 4: Problem Statement & Creator */}
+          {/* Col 4: Impact */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-              Creator & Impact
+              Impact
             </h4>
             <p className="mt-4 text-xs leading-relaxed text-white/70">
-              Architected & Developed with passion by <strong className="text-emerald-400 font-bold text-sm">Janit</strong> for transparent, verifiable circular material exchange.
+              Built for transparent, verifiable circular material exchange.
             </p>
             <div className="mt-4 flex gap-3">
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-emerald-400">
@@ -120,10 +120,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row">
-          <p>© {new Date().getFullYear()} EcoMatch. Developed by <strong className="text-emerald-400 font-semibold">Janit</strong>.</p>
+          <p>© {new Date().getFullYear()} EcoMatch.</p>
           <div className="flex items-center gap-4">
             <span className="text-emerald-400/90 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-              Lead Architect: Janit
+              Circular Marketplace Platform
             </span>
           </div>
         </div>

@@ -1,5 +1,7 @@
 // Illustrative EcoMatch planning rates, not a carrier tariff or bookable quote.
 export const vehicles = {
+  bike: { name: 'Bike / small parcel', capacity: 20, base: 48, perKm: 8 },
+  van: { name: 'Small goods van', capacity: 100, base: 300, perKm: 16 },
   mini: { name: 'Mini loader', capacity: 500, base: 250, perKm: 22 },
   pickup: { name: 'Pickup truck', capacity: 1000, base: 450, perKm: 30 },
   truck: { name: 'Light truck', capacity: 2000, base: 800, perKm: 42 },
@@ -7,7 +9,7 @@ export const vehicles = {
 export type Vehicle = keyof typeof vehicles;
 export function estimateDelivery(distance: number, weight: number, vehicle: Vehicle, productRupees: number) {
   const rate = vehicles[vehicle];
-  if (!rate || ![distance, weight, productRupees].every(Number.isFinite) || distance < 0.1 || distance > 200 || weight < 1 || weight > rate.capacity || productRupees < 0 || productRupees > 10_000_000) {
+  if (!rate || ![distance, weight, productRupees].every(Number.isFinite) || distance < 0.1 || distance > 200 || weight < 0.1 || weight > rate.capacity || productRupees < 0 || productRupees > 10_000_000) {
     throw new Error('Use a route within 200 km, a weight within vehicle capacity, and a valid product amount.');
   }
   const basePaise = rate.base * 100;

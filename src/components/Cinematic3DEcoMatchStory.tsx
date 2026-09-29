@@ -881,7 +881,7 @@ export default function Cinematic3DEcoMatchStory() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
               <div className="rounded-xl bg-[#FAF8F5] p-3">
                 <span className="text-[10px] text-slate-500 uppercase font-bold">Previous Owner</span>
-                <p className="font-bold text-[#16352D] mt-0.5">Janit (Verified)</p>
+                <p className="font-bold text-[#16352D] mt-0.5">EcoMatch Member (Verified)</p>
               </div>
               <div className="rounded-xl bg-[#FAF8F5] p-3">
                 <span className="text-[10px] text-slate-500 uppercase font-bold">New Owner</span>

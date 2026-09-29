@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, CreditCard, MapPin, Package, Truck } from 'lucide-react';
+import { ArrowRight, MapPin, Package, Truck } from 'lucide-react';
 import { vehicles, type Vehicle } from '@/lib/delivery-estimate';
 
 import type { DeliveryPoint } from '@/lib/delivery-route';
+import { useRouter } from 'next/navigation';
+import { checkoutKey, type CheckoutPreview } from '@/lib/delivery-checkout';
+import { recommendVehicle, type ProductLoad } from '@/lib/product-load';
 import { trustFetch, trustPost } from '@/lib/trust/client';
 
 const money = (paise: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(paise / 100);
 const input = 'mt-2 min-h-12 w-full rounded-xl border border-white/20 bg-[#151C28] px-4 py-3 text-white';
 const primary = 'min-h-12 rounded-xl bg-lime-300 px-5 py-3 font-bold text-[#062016] disabled:opacity-40';
-type Context = { pickup: DeliveryPoint; productAmount: number; sample: boolean; buyer: boolean; approximate: boolean };
+type Context = { pickup: DeliveryPoint; productAmount: number; sample: boolean; buyer: boolean; approximate: boolean; product: { title?: string }; imageUrl: string | null; weightEstimate: ProductLoad | null };
 type Estimate = Awaited<ReturnType<typeof import('@/lib/delivery-estimate').estimateDelivery>> & { distanceKm: number; source: string; pickup: DeliveryPoint; destination: DeliveryPoint; approximate: boolean };
 
 export default function DeliveryEstimatePreview({ dealId }: { dealId?: string }) {
@@ -18,16 +21,26 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
   const [drop, setDrop] = useState('');
   const [destination, setDestination] = useState<DeliveryPoint | null>(null);
   const [suggestions, setSuggestions] = useState<DeliveryPoint[]>([]);
-  const [weight, setWeight] = useState('100');
+  const [weight, setWeight] = useState('');
+  const [loadEstimate, setLoadEstimate] = useState<ProductLoad | null>(null);
+  const [bulky, setBulky] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [phone, setPhone] = useState('');
+  const [addressLine, setAddressLine] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const router = useRouter();
   const [vehicle, setVehicle] = useState<Vehicle>('mini');
-  const [step, setStep] = useState<'estimate' | 'checkout' | 'complete'>('estimate');
+
   const [quote, setQuote] = useState<Estimate | null>(null);
   const [error, setError] = useState('');
   const [locationMessage, setLocationMessage] = useState('');
-  const [method, setMethod] = useState('UPI');
+
   const [busy, setBusy] = useState(false);
   const revision = useRef(0);
   const locationRevision = useRef(0);
+  const loadRevision = useRef(0);
   const requestDeviceLocation = useCallback(() => {
     const requestId = ++locationRevision.current;
     if (!navigator.geolocation) { setLocationMessage('Device location unavailable. Search your delivery address below.'); return; }
@@ -35,7 +48,7 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
     navigator.geolocation.getCurrentPosition(position => {
       if (requestId !== locationRevision.current) return;
       const point = { latitude: position.coords.latitude, longitude: position.coords.longitude, label: 'My current device location' };
-      setDestination(point); setDrop(point.label); setQuote(null); setSuggestions([]); revision.current++;
+      setDestination(point); setDrop(point.label); setQuote(null); setBusy(false); setConfirmed(false); setSuggestions([]); revision.current++;
       setLocationMessage(`Device pin selected (accuracy about ${Math.round(position.coords.accuracy)} m). Confirm it or search another address.`);
     }, () => {
       if (requestId === locationRevision.current) setLocationMessage('Location was not available or permission was denied. Search and select your delivery address below.');
@@ -48,7 +61,19 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
     trustFetch(`/api/delivery/estimate${dealId ? `?dealId=${encodeURIComponent(dealId)}` : ''}`).then((data: Context) => {
       if (!active) return;
       setContext(data);
+      if (data.weightEstimate) { setLoadEstimate(data.weightEstimate); setWeight(String(data.weightEstimate.suggestedKg)); setBulky(data.weightEstimate.bulky); setVehicle(data.weightEstimate.vehicle || "truck"); }
       if (data.buyer) requestDeviceLocation();
+      if (data.buyer && data.imageUrl) {
+        setScanBusy(true); setScanMessage('Scanning listing photo for a weight range…');
+        const scanRevision = loadRevision.current;
+        trustPost('/api/delivery/estimate', { dealId, operation: 'scan' }).then(result => {
+          if (!active || scanRevision !== loadRevision.current) return;
+          const load: ProductLoad = result.weightEstimate;
+          setLoadEstimate(load); setWeight(String(load.suggestedKg)); setBulky(load.bulky); setVehicle(load.vehicle || 'truck');
+          setScanMessage('Photo estimate ready. Confirm packaged weight and dimensions with the seller.');
+        }).catch(e => { if (active) setScanMessage(e instanceof Error ? e.message : 'Photo scan unavailable. Listing estimate shown instead.'); })
+          .finally(() => { if (active) setScanBusy(false); });
+      }
     }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load seller location.'); });
     return () => { active = false; locationCounter.current++; quoteCounter.current++; };
   }, [dealId, requestDeviceLocation]);
@@ -74,37 +99,61 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
     const requestId = ++revision.current;
     setBusy(true); setQuote(null);
     try {
-      const result = await trustPost('/api/delivery/estimate', { dealId, destination, weight: Number(weight), vehicle });
+      const result = await trustPost('/api/delivery/estimate', { dealId, destination, weight: Number(weight), vehicle, bulky });
       if (requestId === revision.current) setQuote(result);
     } catch (e) { if (requestId === revision.current) setError(e instanceof Error ? e.message : 'Could not calculate route.'); }
     finally { if (requestId === revision.current) setBusy(false); }
   }
-  function invalidate() { revision.current++; setBusy(false); setQuote(null); setError(''); }
+  function invalidate() { revision.current++; setBusy(false); setQuote(null); setConfirmed(false); setError(''); }
+  async function scanPhoto() {
+    if (!context?.buyer || !context.imageUrl) return;
+    setScanBusy(true); setScanMessage('Scanning listing photo for a weight range…'); invalidate();
+    const scanRevision = loadRevision.current;
+    try {
+      const data = await trustPost('/api/delivery/estimate', { dealId, operation: 'scan' });
+      if (scanRevision !== loadRevision.current) return;
+      const load: ProductLoad = data.weightEstimate;
+      setLoadEstimate(load); setWeight(String(load.suggestedKg)); setBulky(load.bulky); setVehicle(load.vehicle || 'truck');
+      setScanMessage('Photo estimate ready. Confirm packaged weight and dimensions with the seller.');
+    } catch (e) { setScanMessage(e instanceof Error ? e.message : 'Photo scan unavailable. Use the listing estimate or confirmed weight.'); }
+    finally { setScanBusy(false); }
+  }
+  function openCheckout() {
+    if (!quote || !context?.buyer || !confirmed) return;
+    if (recipient.trim().length < 2 || !/^[6-9][0-9]{9}$/.test(phone.trim()) || addressLine.trim().length < 5) {
+      setError('Enter recipient name, a valid 10-digit Indian mobile number, and house/building details before checkout.'); return;
+    }
+    const snapshot: CheckoutPreview = { createdAt: Date.now(), dealId, product: context.product.title || 'Material purchase', pickup: quote.pickup.label, destination: quote.destination.label, recipient: recipient.trim(), phone: phone.trim(), addressLine: addressLine.trim(), vehicle: vehicles[vehicle].name, weight: Number(weight), distanceKm: quote.distanceKm, productPaise: quote.productPaise, deliveryPaise: quote.deliveryPaise, servicePaise: quote.servicePaise, totalPaise: quote.totalPaise };
+    try { sessionStorage.setItem(checkoutKey, JSON.stringify(snapshot)); router.push('/delivery/checkout'); }
+    catch { setError('Allow browser session storage to open the checkout preview.'); }
+  }
+  if (context && !context.buyer) return <section className="rounded-2xl border border-white/20 p-5 text-white"><h3 className="font-bold">Seller pickup location</h3><p className="mt-3">{context.pickup.label}</p><p className="mt-3 text-sm text-slate-300">The buyer selects the delivery address and proceeds to online checkout. Your saved location is used for pickup.</p></section>;
   return <section className="rounded-3xl border border-emerald-300/30 bg-[#0C101A] p-5 text-white sm:p-8">
     <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-xs font-bold tracking-[0.18em] text-lime-300">ECOMATCH DELIVERY</span><span className="rounded-full bg-amber-200 px-3 py-2 text-xs font-bold text-amber-950">DEMO · ESTIMATE & PAYMENT PREVIEW</span></div>
-    <h2 className="mt-5 text-2xl font-bold sm:text-3xl">{step === 'estimate' ? 'Plan your material delivery.' : step === 'checkout' ? 'Review your checkout.' : 'Demo walkthrough complete.'}</h2>
-    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">{step === 'estimate' ? 'Explore an indicative delivery cost before arranging transport. No carrier is connected and no driver will be booked.' : 'Preview only. No money is collected, no order is placed, and your deal status stays unchanged.'}</p>
-    <ol aria-label="Preview progress" className="my-6 flex flex-wrap gap-3 text-sm">{['Delivery estimate', 'Payment preview', 'Demo complete'].map((label, i) => <li key={label} aria-current={i === ['estimate', 'checkout', 'complete'].indexOf(step) ? 'step' : undefined} className={`rounded-full px-3 py-2 ${i === ['estimate', 'checkout', 'complete'].indexOf(step) ? 'bg-lime-300 text-[#062016]' : 'bg-white/10 text-slate-300'}`}>{i + 1}. {label}</li>)}</ol>
-    {step === 'estimate' && <div className="grid gap-7 lg:grid-cols-2">
+    <h2 className="mt-5 text-2xl font-bold sm:text-3xl">Plan your material delivery.</h2>
+    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Choose where to receive your product, confirm its estimated load and continue to one online checkout. Booking and payment are currently previews.</p>
+    <p className="my-6 text-sm text-lime-200">1. Delivery details → 2. Confirm estimate → 3. Payment page</p>
+    <div className="grid gap-7 lg:grid-cols-2">
       <form onSubmit={e => { e.preventDefault(); calculate(); }} className="space-y-5">
         <div className="rounded-xl border border-white/20 bg-white/5 p-4"><p className="text-sm font-semibold"><MapPin className="mr-1 inline h-4 w-4"/>Pickup · seller saved location</p><p className="mt-2 text-slate-200">{context?.pickup.label || 'Loading seller pickup…'}</p>{context && <p className="mt-2 text-xs text-slate-400">{context.sample ? 'Standalone demo uses a fixed sample seller pin and ₹15,000 product. Open a deal for its actual seller location and agreed price.' : context.approximate ? 'Seller’s public area pin is approximate. Exact pickup access is needed for a final carrier quote.' : 'Saved seller pin. The buyer cannot change this pickup.'}</p>}</div>
         <div><label className="text-sm font-semibold">Where should we deliver your product?<input className={input} value={drop} maxLength={200} placeholder="Search street, locality and city" onChange={e => { locationRevision.current++; setDrop(e.target.value); setDestination(null); setSuggestions([]); setLocationMessage("Search and select your delivery address."); invalidate(); }} required/></label><button type="button" className="mt-2 min-h-12 rounded-xl border border-lime-300/40 px-4 text-sm text-lime-300" onClick={requestDeviceLocation}>Use my current location</button><p role="status" className="mt-2 text-xs leading-5 text-slate-300">{locationMessage}</p>{suggestions.length > 0 && <ul className="mt-3 overflow-hidden rounded-xl border border-white/20">{suggestions.map((point, i) => <li key={`${point.latitude}-${point.longitude}-${i}`}><button type="button" className="min-h-12 w-full border-b border-white/10 bg-[#151C28] p-3 text-left text-sm hover:bg-white/10" onClick={() => { locationRevision.current++; setDestination(point); setDrop(point.label); setSuggestions([]); setLocationMessage('Delivery pin selected.'); invalidate(); }}>{point.label}</button></li>)}</ul>}</div>
         {destination && <p className="text-xs text-lime-200">Selected delivery pin: {destination.latitude.toFixed(5)}, {destination.longitude.toFixed(5)}</p>}
-        <p className="text-xs leading-5 text-slate-400">Distance is calculated from the seller pin to your selected destination by road. Address search uses Photon; route calculation shares the two pins with OSRM/OpenStreetMap. No address is saved by this preview.</p>
-        <label className="block text-sm font-semibold">Material weight (kg)<input className={input} type="number" min="1" max={vehicles[vehicle].capacity} step="0.1" value={weight} onChange={e => { setWeight(e.target.value); invalidate(); }} required/></label>
-        <label className="block text-sm font-semibold"><Truck className="mr-1 inline h-4 w-4"/>Vehicle<select className={input} value={vehicle} onChange={e => { setVehicle(e.target.value as Vehicle); invalidate(); }}>{Object.entries(vehicles).map(([key, v]) => <option key={key} value={key}>{v.name} · up to {v.capacity} kg</option>)}</select></label>
+        <p className="text-xs leading-5 text-slate-400">Distance is calculated from the seller pin to your selected destination by road. Address search uses Photon; route calculation shares the two pins with OSRM/OpenStreetMap. Only the checkout preview stores your entered details in this tab’s session; nothing is saved to your deal.</p>
+        <div className="rounded-xl border border-lime-300/20 bg-lime-300/5 p-4"><h3 className="font-bold">Product load & recommended transport</h3><p className="mt-2 text-sm">{context?.product.title || 'Loading product…'}</p>{loadEstimate ? <><p className="mt-3 font-semibold text-lime-200">{loadEstimate.lowKg}–{loadEstimate.highKg} kg · {loadEstimate.source === 'photo' ? 'AI photo estimate' : loadEstimate.source === 'listing' ? 'Listed mass' : 'Category estimate'}</p><p className="mt-2 text-xs leading-5 text-slate-300">{loadEstimate.reason}</p></> : <p className="mt-3 text-sm text-slate-300">Weight cannot be inferred reliably. Scan the listing photo or enter the seller-confirmed packaged weight.</p>}{context?.imageUrl && <button type="button" disabled={scanBusy} onClick={() => void scanPhoto()} className="mt-3 min-h-12 rounded-xl border border-lime-300/50 px-4 text-sm text-lime-200 disabled:opacity-40">{scanBusy ? 'Scanning photo…' : 'Scan product photo for estimated weight'}</button>}<p role="status" className="mt-2 text-xs text-amber-100">{scanMessage}</p><p className="mt-2 text-xs text-slate-400">Photo estimates are not measurements. We start with the upper end of the range. Check dimensions and packaging with the seller.</p></div>
+        <label className="block text-sm font-semibold">Estimated total packaged weight (kg)<input className={input} type="number" min="0.1" max="2000" step="0.1" value={weight} onChange={e => { loadRevision.current++; setWeight(e.target.value); const recommended = recommendVehicle(Number(e.target.value), bulky); if (recommended) setVehicle(recommended); invalidate(); }} required/></label>
+        <label className="flex min-h-12 items-center gap-3 text-sm"><input type="checkbox" checked={bulky} disabled={!!loadEstimate?.bulky} onChange={e => { loadRevision.current++; setBulky(e.target.checked); const recommended = recommendVehicle(Number(weight), e.target.checked); if (recommended) setVehicle(recommended); invalidate(); }}/>Bulky furniture / does not fit a small parcel vehicle</label>
+        <label className="block text-sm font-semibold"><Truck className="mr-1 inline h-4 w-4"/>Recommended vehicle — you can upgrade<select className={input} value={vehicle} onChange={e => { loadRevision.current++; setVehicle(e.target.value as Vehicle); invalidate(); }}>{Object.entries(vehicles).map(([key, v]) => <option key={key} value={key} disabled={Number(weight) > v.capacity || (bulky && (key === 'bike' || key === 'van'))}>{v.name} · maximum {v.capacity} kg capacity</option>)}</select></label>
+        <p className="text-xs text-slate-400">Small parcels can start at 0.1 kg; vehicle capacities are maximums, not minimum order weights. Van preview is conservatively limited to 100 kg; bulky furniture uses a loader.</p>
         <p className="rounded-xl bg-white/5 p-4 text-sm">Product value <strong className="float-right">{context ? money(context.productAmount * 100) : 'Loading…'}</strong></p>
         <p className="text-xs text-slate-400">Product price and pickup come from the server. Weight and vehicle suitability need confirmation before real booking.</p>
         {error && <p role="alert" className="rounded-xl bg-amber-100 p-3 text-sm text-amber-950">{error}</p>}
-        <button className={`${primary} w-full`} disabled={busy || !context || !destination} type="submit">{busy ? 'Calculating road route…' : 'Calculate delivery & total'} <ArrowRight className="ml-2 inline h-4 w-4"/></button>
+        <button className={`${primary} w-full`} disabled={busy || scanBusy || !context || !destination} type="submit">{busy ? 'Calculating road route…' : 'Calculate delivery & total'} <ArrowRight className="ml-2 inline h-4 w-4"/></button>
       </form>
       <div className="rounded-2xl border border-white/10 bg-[#151C28] p-5 sm:p-6">
         <Package className="mb-4 h-8 w-8 text-lime-300"/><h3 className="text-xl font-bold">Your delivery estimate</h3>
-        {quote ? <><p className="mt-5 text-4xl font-bold text-lime-300">{money(quote.deliveryPaise)}</p><p className="mt-2 text-sm text-lime-200">{quote.distanceKm} km · calculated road distance</p><p className="mt-2 text-sm text-slate-300">Illustrative delivery range: {money(quote.lowPaise)}–{money(quote.highPaise)}</p><div className="my-5 space-y-3 text-sm"><Row label="Vehicle base" value={quote.basePaise}/><Row label={`${quote.distanceKm} km by road × ₹${vehicles[vehicle].perKm}/km`} value={quote.distancePaise}/><Row label="Illustrative service fee (10%)" value={quote.servicePaise}/></div><p className="mb-5 text-xs leading-5 text-slate-400">EcoMatch planning formula, not a Porter or carrier quote. Range is ±20% of this formula, not a guaranteed price. Excludes GST, tolls, parking, loading labour and waiting charges.</p><button className={`${primary} w-full`} onClick={() => setStep('checkout')}>Continue with one total <ArrowRight className="ml-2 inline h-4 w-4"/></button></> : <p className="mt-5 leading-7 text-slate-300">Add your route and load details to see a cost breakdown, then explore the checkout experience.</p>}
+        {quote ? <><p className="mt-5 text-4xl font-bold text-lime-300">{money(quote.deliveryPaise)}</p><p className="mt-2 text-sm text-lime-200">{quote.distanceKm} km · calculated road distance</p><p className="mt-2 text-sm text-slate-300">Illustrative delivery range: {money(quote.lowPaise)}–{money(quote.highPaise)}</p><div className="my-5 space-y-3 text-sm"><Row label="Vehicle base" value={quote.basePaise}/><Row label={`${quote.distanceKm} km by road × ₹${vehicles[vehicle].perKm}/km`} value={quote.distancePaise}/><Row label="Illustrative service fee (10%)" value={quote.servicePaise}/></div><p className="mb-5 text-xs leading-5 text-slate-400">EcoMatch planning formula, not a carrier quote. Public reference: Porter lists bike delivery from ₹48 (20 kg), Delhi three-wheeler from ₹250 and Eeco from ₹300. Per-km rates here are EcoMatch assumptions, not Porter tariffs. Range is ±20% of this formula, not a guaranteed price. Excludes GST, tolls, parking, loading labour and waiting charges. <a href="https://porter.in/two-wheelers" target="_blank" rel="noreferrer" className="underline">Bike reference</a> · <a href="https://porter.in/trucks/delhi" target="_blank" rel="noreferrer" className="underline">Delhi vehicle reference</a></p><div className="mb-5 space-y-3"><label className="block text-sm">Recipient name<input className={input} value={recipient} maxLength={100} autoComplete="name" onChange={e => setRecipient(e.target.value)}/></label><label className="block text-sm">Recipient mobile<input className={input} type="tel" inputMode="numeric" maxLength={10} autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}/></label><label className="block text-sm">House / flat / building & landmark<input className={input} value={addressLine} maxLength={200} autoComplete="address-line1" onChange={e => setAddressLine(e.target.value)}/></label><label className="flex min-h-12 items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}/>I have checked the delivery pin, load estimate and vehicle size. I understand checkout is a demo.</label><p className="text-lg font-bold text-lime-300">Product + delivery + 10% delivery fee: {money(quote.totalPaise)}</p></div><button type="button" className={`${primary} w-full`} disabled={!confirmed || scanBusy} onClick={openCheckout}>Continue to payment page <ArrowRight className="ml-2 inline h-4 w-4"/></button></> : <p className="mt-5 leading-7 text-slate-300">Add your route and load details to see a cost breakdown, then explore the checkout experience.</p>}
       </div>
-    </div>}
-    {step === 'checkout' && quote && <div className="grid gap-6 lg:grid-cols-2"><div className="space-y-5"><button className="min-h-12 text-sm text-lime-300" onClick={() => setStep('estimate')}><ArrowLeft className="mr-2 inline h-4 w-4"/>Edit estimate</button><div className="rounded-2xl bg-white/5 p-5"><p className="font-semibold">{quote.pickup.label} → {quote.destination.label}</p><p className="mt-2 text-sm text-slate-300">{vehicles[vehicle].name} · {quote.distanceKm} km by road · {weight} kg</p></div><fieldset><legend className="mb-3 font-bold">Explore payment methods</legend><div className="grid gap-3 sm:grid-cols-3">{['UPI', 'Cards', 'Net banking'].map(m => <label key={m} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm ${method === m ? 'border-lime-300 bg-lime-300/10' : 'border-white/20'}`}><input type="radio" name="payment-preview-method" checked={method === m} onChange={() => setMethod(m)}/>{m}</label>)}</div></fieldset><div className="rounded-xl border border-amber-200/30 p-4 text-sm leading-6 text-amber-100"><CreditCard className="mb-2 h-6 w-6"/>{method} preview — gateway not connected. Do not enter card details, UPI PINs or bank credentials. Real payment will be available after gateway integration.</div></div><div className="rounded-2xl bg-[#151C28] p-6"><h3 className="mb-5 text-xl font-bold">One checkout · Product + delivery</h3><div className="space-y-4 text-sm"><Row label="Product value" value={quote.productPaise}/><Row label="Estimated delivery" value={quote.deliveryPaise}/><Row label="Illustrative service fee" value={quote.servicePaise}/><div className="border-t border-white/20 pt-4 text-lg"><Row label="Combined estimated total" value={quote.totalPaise}/></div></div><p className="my-5 text-xs leading-5 text-slate-400">Excludes applicable taxes and additional transport charges. Product, delivery and service fee are combined into one checkout. This is a preview; payment is not collected.</p><button disabled className="mb-3 min-h-12 w-full rounded-xl border border-white/20 p-3 text-slate-400">Pay {money(quote.totalPaise)} · Coming soon</button><button className={`${primary} w-full`} onClick={() => setStep('complete')}>Finish demo preview</button></div></div>}
-    {step === 'complete' && <div role="status" className="rounded-2xl border border-lime-300/30 bg-lime-300/5 p-6 text-center"><CheckCircle2 className="mx-auto h-12 w-12 text-lime-300"/><h3 className="mt-4 text-2xl font-bold">Preview finished — no payment made</h3><p className="mx-auto mt-3 max-w-lg leading-7 text-slate-300">You explored the estimate and checkout. No funds were held, no delivery was booked, and no ownership was transferred.</p><button className={`${primary} mt-6`} onClick={() => { setStep('estimate'); setQuote(null); }}>Try another estimate</button></div>}
+    </div>
   </section>;
 }
 
