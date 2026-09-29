@@ -505,8 +505,18 @@ declare pid bigint;begin
 create trigger trust_image_guard before insert or update or delete on product_images for each row execute function trust_image_guard();
 -- Older permissive policies must not allow clients to bypass the server safety layer.
 revoke insert,update,delete on calls,communication_risk_events,ownership_events from anon,authenticated;
--- Private realtime topics: only a recipient can receive, only an active counterparty can send.
-create policy trust_signal_receive on realtime.messages for select to authenticated using(extension='broadcast' and realtime.topic()='user-signaling-'||auth.uid()::text);
+-- A recipient needs to subscribe before a call starts. The caller must also be
+-- allowed to subscribe to that recipient topic after an active call exists,
+-- otherwise the browser cannot join the private channel to send its offer.
+create policy trust_signal_receive on realtime.messages for select to authenticated using(
+  extension='broadcast' and (
+    realtime.topic()='user-signaling-'||auth.uid()::text
+    or exists(select 1 from calls where status in('RINGING','ACCEPTED') and (
+      (caller_id=auth.uid() and realtime.topic()='user-signaling-'||receiver_id::text)
+      or (receiver_id=auth.uid() and realtime.topic()='user-signaling-'||caller_id::text)
+    ))
+  )
+);
 create policy trust_signal_send on realtime.messages for insert to authenticated with check(extension='broadcast' and exists(select 1 from calls where status in('RINGING','ACCEPTED') and ((caller_id=auth.uid() and realtime.topic()='user-signaling-'||receiver_id::text) or (receiver_id=auth.uid() and realtime.topic()='user-signaling-'||caller_id::text))));
 -- Public discovery uses coarse coordinates; exact saved addresses remain owner/admin-only.
 create or replace view public.public_profiles with (security_barrier=true) as
