@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
-import { showcaseName } from "@/lib/showcase-display";
 import {
   User,
   ShieldCheck,
@@ -61,7 +60,6 @@ export default function ProfilePage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const displayName = showcaseName(profile?.full_name, "EcoMatch Member");
 
   useEffect(() => {
     loadProfile();
@@ -149,14 +147,14 @@ export default function ProfilePage() {
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-400/40 bg-emerald-500/20 text-2xl font-black text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                    {displayName.slice(0, 1).toUpperCase()}
+                    {(profile?.full_name || email || "E").slice(0, 1).toUpperCase()}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
                       MEMBER PROFILE
                     </span>
                     <h1 className="mt-1 text-2xl font-black text-white sm:text-3xl">
-                      {displayName}
+                      {profile?.full_name || "EcoMatch Member"}
                     </h1>
                     <p className="mt-0.5 text-xs text-white/50 capitalize">{profile?.role || "Trader"} Account</p>
                   </div>

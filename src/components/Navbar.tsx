@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { showcaseName } from "@/lib/showcase-display";
 import {
   Sparkles,
   Layers,
@@ -73,7 +72,7 @@ export default function Navbar() {
         if (!mounted) return;
 
         setUserRole(profile?.role || null);
-        setUserName(showcaseName(profile?.full_name, "EcoMatch Member"));
+        setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
         setIsVerified(profile?.verification_status === "verified");
         const { data: unreadTotal } = await supabase.rpc("get_unread_message_count");
         if (mounted && unreadTotal !== null) {
