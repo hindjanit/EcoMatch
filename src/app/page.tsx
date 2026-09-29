@@ -7,6 +7,7 @@ import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import ShowcaseJourney from "@/components/ShowcaseJourney";
 import { createClient } from "@/lib/supabase/client";
 import {
   ArrowRight,
@@ -286,6 +287,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <ShowcaseJourney />
 
       <section className="border-y border-[#10251b]/10 bg-[#f3f4e9] px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">

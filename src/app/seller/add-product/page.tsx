@@ -67,6 +67,10 @@ export default function AddProductPage() {
   const [material, setMaterial] = useState("");
   const [description, setDescription] = useState("");
   const [specifications, setSpecifications] = useState("");
+  const [estimatedWeight, setEstimatedWeight] = useState("");
+  const [dimensions, setDimensions] = useState("");
+  const [packaging, setPackaging] = useState("");
+  const [pickupWindow, setPickupWindow] = useState("");
 
   const [quantity, setQuantity] = useState("");
   const [quantityUnit, setQuantityUnit] = useState("piece");
@@ -860,7 +864,13 @@ export default function AddProductPage() {
 
           description: description.trim() || null,
 
-          specifications: specifications.trim() || null,
+          specifications: [
+            specifications.trim(),
+            estimatedWeight.trim() && `Logistics: estimated packaged weight ${estimatedWeight.trim()} kg`,
+            dimensions.trim() && `Dimensions: ${dimensions.trim()}`,
+            packaging.trim() && `Packaging: ${packaging.trim()}`,
+            pickupWindow.trim() && `Pickup availability: ${pickupWindow.trim()}`,
+          ].filter(Boolean).join("\n") || null,
 
           quantity: Number(quantity),
 
@@ -1304,6 +1314,17 @@ export default function AddProductPage() {
                   className="mt-2 w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-[#163038] outline-none focus:border-[#187052]"
                 />
               </div>
+
+              <fieldset className="md:col-span-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                <legend className="px-2 text-sm font-bold text-[#163038]">Delivery readiness <span className="font-normal text-gray-500">(helps buyers plan transport)</span></legend>
+                <p className="mb-4 text-xs leading-5 text-gray-600">These seller-provided details improve the vehicle recommendation. They are shown with the listing and must be confirmed before booking.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-semibold text-[#163038]">Estimated packed weight (kg)<input type="number" min="0.1" step="0.1" value={estimatedWeight} onChange={e=>setEstimatedWeight(e.target.value)} placeholder="e.g. 42" className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#187052]"/></label>
+                  <label className="text-sm font-semibold text-[#163038]">Dimensions (L × W × H)<input value={dimensions} onChange={e=>setDimensions(e.target.value)} maxLength={100} placeholder="e.g. 120 × 60 × 75 cm" className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#187052]"/></label>
+                  <label className="text-sm font-semibold text-[#163038]">Packaging / loading notes<input value={packaging} onChange={e=>setPackaging(e.target.value)} maxLength={120} placeholder="e.g. boxed, needs two people" className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#187052]"/></label>
+                  <label className="text-sm font-semibold text-[#163038]">Pickup availability<input value={pickupWindow} onChange={e=>setPickupWindow(e.target.value)} maxLength={120} placeholder="e.g. Mon–Sat, 10am–5pm" className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#187052]"/></label>
+                </div>
+              </fieldset>
             </div>
           </div>
 

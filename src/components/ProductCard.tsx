@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   Sparkles,
   Zap,
+  Truck,
 } from "lucide-react";
 
 export type ProductCardData = {
@@ -149,6 +150,11 @@ export default function ProductCard({
                 {product.description}
               </p>
             )}
+            <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-semibold">
+              <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-sky-200">{isVerifiedSeller ? "Identity signal available" : "Seller identity pending"}</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-lime-300/20 bg-lime-300/10 px-2 py-1 text-lime-200"><Truck className="h-3 w-3"/> Delivery planning</span>
+            </div>
+            <details className="pt-1 text-[10px] text-slate-400"><summary className="min-h-8 cursor-pointer py-1 text-sky-200">Why this trust signal?</summary><p className="leading-4">Identity status, seller area and marketplace review are shown separately. A score is a discovery signal; inspect the listing and agree terms in the deal room.</p></details>
           </div>
         </div>
 
