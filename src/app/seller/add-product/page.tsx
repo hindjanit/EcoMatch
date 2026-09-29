@@ -950,14 +950,18 @@ export default function AddProductPage() {
 
       try {
         const result = await trustPost('/api/trust/listings', { productId: String(product.id) });
-        setMessage(result.status === 'approved' ? 'Listing automatically approved and visible in the marketplace.' : 'Listing submitted for admin review. See the safety checks in your dashboard.');
+        if (result.status === 'approved') {
+          setMessage('✓ Safety checks passed. Your listing is now live in the marketplace.');
+        } else {
+          setMessage('⏳ Additional review required. Your listing will appear after administrative verification.');
+        }
       } catch {
-        setMessage('Listing saved. Automated safety review is unavailable; admin review is required before publication.');
+        setMessage('Listing saved. Additional review required. Your listing will appear after administrative verification.');
       }
 
       setTimeout(() => {
         router.push("/seller/dashboard");
-      }, 1200);
+      }, 1500);
     } catch (submitError) {
       console.error(submitError);
 
