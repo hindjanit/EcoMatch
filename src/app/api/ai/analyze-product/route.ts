@@ -130,8 +130,9 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const model = process.env.GEMINI_VISION_MODEL;
-      if (!model) return visionFailure("VISION_MODEL_NOT_CONFIGURED", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", configuredModel: null, modelAccessible: "unknown", generateContentSupported: "unknown" });
+      // Preserve the last known working classifier model when Vercel has no
+      // explicit override. This is a provider default, never an analysis fallback.
+      const model = process.env.GEMINI_VISION_MODEL || "gemini-3.5-flash-lite";
       if (!/^[a-zA-Z0-9.-]+$/.test(model)) return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model });
       console.info("[Vision AI]", { stage: "request_start", configuredModel: model, apiKeyPresent: true, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true });
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
