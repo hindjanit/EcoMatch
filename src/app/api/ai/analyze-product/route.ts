@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { validateCategory, VISION_CATEGORIES } from "@/lib/vision-category";
 
 export const runtime = "nodejs";
 
@@ -6,29 +7,6 @@ function visionFailure(code: string, message: string, status: number, details: R
   console.error("[Vision AI]", { code, apiKeyPresent: Boolean(process.env.GEMINI_API_KEY), ...details });
   return NextResponse.json({ error: message, code }, { status });
 }
-
-const allowedCategories = [
-  "Mobile Phones",
-  "Electronics",
-  "Computers & Accessories",
-  "Home Appliances",
-  "Furniture & Home",
-  "Vehicles & Auto Parts",
-  "Fashion & Accessories",
-  "Books & Education",
-  "Sports & Fitness",
-  "Toys & Kids",
-  "Industrial & Business",
-  "Construction Materials",
-  "Metals",
-  "Plastic",
-  "Wood",
-  "Electrical Materials",
-  "Machinery & Equipment",
-  "Packaging Materials",
-  "Industrial Goods",
-  "Other",
-];
 
 const allowedConditions = [
   "New",
@@ -92,14 +70,14 @@ Analyze the uploaded product photo carefully. Inspect the object's physical form
 
 Guidelines for Identification:
 1. If the photo shows a computer peripheral (e.g. mouse, keyboard, headphones, monitor), identify it accurately. If an HP, Dell, Logitech, Lenovo, or Apple logo/text is visible, include the brand name and exact product type (e.g. "HP Wireless Mouse", "Logitech Wireless Keyboard").
-2. Category must be chosen from Allowed categories (e.g. "Computers & Accessories" for mice/keyboards/laptops, "Mobile Phones" for phones, "Electronics" for gadgets, "Metals" for metal lots).
+2. Identify the specific product type and visible material. A deterministic EcoMatch layer will assign the final category; do not guess an unrelated category.
 3. Independently estimate only the VISIBLE condition: New, Like New, Good, Fair, Poor, Damaged, or Unknown. Inspect scratches, dents, cracks, stains, discoloration, rust/corrosion, missing or broken parts, wear, and packaging/seals. Never infer internal functionality from a photo. Use Unknown when visible evidence is insufficient.
 4. Produce a crisp marketplace title (e.g. "HP Wireless Optical Mouse"), product type ("Wireless Mouse"), detailed 2-sentence description, and 3-5 bullet specifications (e.g. ["2.4GHz Wireless Dongle / Bluetooth", "Optical Sensor Tracking", "Ergonomic Grip", "Buttons & Scroll Wheel Intact"]).
 
 Return ONLY valid JSON and no markdown backticks.
 
-Allowed categories:
-${allowedCategories.join(", ")}
+Allowed final EcoMatch categories:
+${VISION_CATEGORIES.join(", ")}
 
 Allowed conditions:
 ${allowedConditions.join(", ")}
@@ -107,8 +85,9 @@ ${allowedConditions.join(", ")}
 Required JSON shape:
 {
   "productName": "short recognizable product name (e.g. HP Wireless Mouse)",
-  "category": "exactly one allowed category (e.g. Computers & Accessories)",
+  "category": "best provisional category from the allowed list",
   "productType": "specific product type (e.g. Wireless Optical Mouse)",
+  "material": "visible material such as stainless steel, PET plastic, copper, wood, or Unknown",
   "brand": "HP or Logitech or Dell or brand if visible, otherwise Unknown",
   "condition": "New | Like New | Good | Fair | Poor | Damaged | Unknown",
   "conditionConfidence": 0.90,
@@ -192,9 +171,11 @@ ${sellerText || "No seller text provided."}
         return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_parse", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
-      if (!allowedCategories.includes(analysis.category)) {
-        analysis.category = "Other";
-      }
+      const category = validateCategory({ productType: analysis.productType || analysis.productName, material: analysis.material, aiCategory: analysis.category, observations: [analysis.conditionReason, ...(Array.isArray(analysis.visibleIssues) ? analysis.visibleIssues : [])] });
+      analysis.aiCategory = analysis.category;
+      analysis.category = category.category;
+      analysis.categoryConfidence = category.categoryConfidence;
+      analysis.categoryNeedsReview = category.categoryNeedsReview;
 
       if (!allowedConditions.includes(analysis.condition)) analysis.condition = "Unknown";
       analysis.visualCondition = analysis.condition;

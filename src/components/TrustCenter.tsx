@@ -202,9 +202,9 @@ export default function TrustCenter() {
   return (
     <main className="min-h-screen bg-[#062016] px-5 py-12 text-white">
       <div className="mx-auto max-w-6xl">
-        <Link className="inline-block min-h-12 underline text-sm text-lime-300" href="/admin">
+        <a className="inline-block min-h-12 underline text-sm text-lime-300" href="/admin">
           ← Back to primary admin dashboard
-        </Link>
+        </a>
         <p className="text-xs tracking-widest text-lime-300">ECOMATCH · TRUST & OPERATIONS CENTER</p>
         <h1 className="my-4 text-4xl font-black">AI Safe Verification & Shiprocket Logistics</h1>
         <p className="max-w-2xl text-white/70 text-sm">

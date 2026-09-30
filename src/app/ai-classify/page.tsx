@@ -134,45 +134,7 @@ export default function AIClassifyPage() {
         setVisionResult(analysis);
       } catch (err) {
         console.error("AI classify error:", err);
-        // If API fails (e.g. key issue or network), provide smart fallback vision analysis
-        const lower = (query + " " + imageFile.name).toLowerCase();
-        let fallbackCat = "Electronics";
-        let fallbackTitle = query || "Surplus Inspected Lot";
-        let fallbackMat = "Refurbished Component";
-
-        if (lower.includes("aluminium") || lower.includes("aluminum") || lower.includes("metal")) {
-          fallbackCat = "Metals";
-          fallbackTitle = "6061-T6 Aluminum Structural Offcuts";
-          fallbackMat = "6061-T6 Aluminum Alloy";
-        } else if (lower.includes("laptop") || lower.includes("computer") || lower.includes("dell") || lower.includes("lenovo")) {
-          fallbackCat = "Computers & Accessories";
-          fallbackTitle = "Refurbished Business Fleet Laptop";
-          fallbackMat = "Aluminum / Magnesium Alloy Chassis";
-        } else if (lower.includes("plastic") || lower.includes("drum") || lower.includes("hdpe")) {
-          fallbackCat = "Plastic";
-          fallbackTitle = "Food-Grade HDPE Plastic Drums";
-          fallbackMat = "High-Density Polyethylene";
-        }
-
-        setVisionResult({
-          productName: fallbackTitle,
-          category: fallbackCat,
-          productType: fallbackMat,
-          brand: "Identified Surplus",
-          condition: "Good",
-          conditionConfidence: 92,
-          classificationConfidence: 95,
-          visibleIssues: [],
-          suggestedTitle: fallbackTitle,
-          suggestedDescription: `Inspected surplus material ready for secondary reuse or recycling. Material composition: ${fallbackMat}.`,
-          suggestedSpecifications: [
-            `Primary Material: ${fallbackMat}`,
-            `Verified Grade: Good (Refurb Ready)`,
-            `Zero-Landfill Protocol: Active`,
-          ],
-          reusePotential: "High",
-          notes: "AI Vision inspected product geometry and optical structure.",
-        });
+        setError(err instanceof Error ? err.message : "Vision AI could not classify this image. No classification was created.");
       } finally {
         setIsScanning(false);
       }
