@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateProductLoad, recommendVehicle } from '../src/lib/product-load';
+import { estimateProductLoad, getCanonicalWeight, recommendVehicle, selectSmallestSuitableDeliveryOption } from '../src/lib/product-load';
 import { estimateDelivery } from '../src/lib/delivery-estimate';
 import { parseCheckout } from '../src/lib/delivery-checkout';
 
@@ -19,6 +19,16 @@ test('mass quantities convert once; unsupported heavy loads need custom quote', 
   assert.equal(recommendVehicle(0, false), null);
   assert.equal(estimateDelivery(1, 0.1, 'bike', 100).servicePaise, 560);
   assert.throws(() => estimateDelivery(1, 20.1, 'bike', 100));
+});
+test('delivery selection uses the smallest capable option and preserves an explicit non-bulky AI assessment', () => {
+  assert.equal(selectSmallestSuitableDeliveryOption(0.5, false), 'bike');
+  assert.equal(selectSmallestSuitableDeliveryOption(5, false), 'bike');
+  assert.equal(selectSmallestSuitableDeliveryOption(100, false), 'van');
+  assert.equal(selectSmallestSuitableDeliveryOption(0.5, true), 'mini');
+  assert.deepEqual(
+    getCanonicalWeight({ title: 'Small household item', category: 'Furniture', ai_estimated_weight_kg: 0.5, ai_weight_bulky: false }),
+    { weightKg: 0.5, bulky: false, source: 'ai' },
+  );
 });
 test('checkout expires and invalid totals cannot be displayed as a valid preview', () => {
   const value = { createdAt: Date.now(), product: 'Sample', pickup: 'Sample pickup', destination: 'Sample drop', recipient: 'Demo', phone: '9999999999', addressLine: 'Demo building', vehicle: 'Bike', weight: 1, distanceKm: 1, productPaise: 10000, deliveryPaise: 5600, servicePaise: 560, totalPaise: 16160 };

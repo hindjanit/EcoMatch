@@ -61,6 +61,8 @@ type Data = {
   deposit: { status: string; amount_paise: number; deducted_paise: number } | null;
   evidence: Evidence[];
   timeline: { id: string; event_type: string; created_at: string }[];
+  product?: { title?: string; category?: string; material?: string; specifications?: string } | null;
+  canonicalWeight?: { weightKg: number; bulky: boolean; source: string } | null;
 };
 
 const rupees = (n: number) =>
@@ -88,7 +90,6 @@ export default function SecureDeliveryPanel({
   const [address, setAddress] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
-  const [weight, setWeight] = useState("1.0");
   const [lengthVal, setLengthVal] = useState("20");
   const [breadthVal, setBreadthVal] = useState("15");
   const [heightVal, setHeightVal] = useState("10");
@@ -524,25 +525,38 @@ export default function SecureDeliveryPanel({
             </div>
           )}
 
-          {/* PACKAGE WEIGHT & DIMENSIONS INPUT FOR SELLER BOOKING */}
+          {/* PACKAGE WEIGHT (CANONICAL READ-ONLY) & OUTER DIMENSIONS FOR SELLER BOOKING */}
           {seller && state === "PICKUP_VERIFIED" && (
             <div className="my-5 rounded-2xl border border-emerald-400/30 bg-[#072418] p-5">
-              <h3 className="font-bold text-white mb-2">Confirm Package Dimensions & Weight for Courier</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-white">Confirm Package Dimensions for Courier</h3>
+                <span className="rounded-full bg-lime-400/20 border border-lime-400/30 px-3 py-1 text-xs font-semibold text-lime-300">
+                  AI Estimated Weight
+                </span>
+              </div>
               <p className="text-xs text-white/70 mb-4">
-                Shiprocket calculates volumetric freight based on these confirmed measurements.
+                Shiprocket booking uses the verified canonical package weight. Confirm outer packaging dimensions below.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <label className="text-xs">
-                  Weight (kg)
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.5"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    className="mt-1 w-full rounded-lg bg-white p-2.5 text-black font-semibold text-sm"
-                  />
-                </label>
+
+              {/* READ-ONLY CANONICAL WEIGHT DISPLAY */}
+              <div className="mb-4 rounded-xl bg-black/40 border border-white/10 p-3.5 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-400 block">Canonical Shipment Weight</span>
+                  <span className="text-xl font-bold text-lime-300">
+                    {data.canonicalWeight?.weightKg ? `${data.canonicalWeight.weightKg} kg` : "Weight pending verification"}
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    Source: AI listing analysis
+                    {data.canonicalWeight?.bulky ? " · Bulky classification" : ""}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-emerald-300 font-semibold block">Protected Attribute</span>
+                  <span className="text-[11px] text-slate-400">Read-only server truth</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mb-4">
                 <label className="text-xs">
                   Length (cm)
                   <input
@@ -576,10 +590,9 @@ export default function SecureDeliveryPanel({
               </div>
               <button
                 className={button}
-                disabled={busy}
+                disabled={busy || !data.canonicalWeight?.weightKg}
                 onClick={() =>
                   void act("book", {
-                    weight: Number(weight),
                     length: Number(lengthVal),
                     breadth: Number(breadthVal),
                     height: Number(heightVal),

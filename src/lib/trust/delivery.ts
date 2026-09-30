@@ -10,6 +10,8 @@ import {
   type Quote,
 } from "./providers";
 import { check, HttpError, serviceDb } from "./server";
+import { getCanonicalWeight } from "@/lib/product-load";
+
 
 export async function deliveryRecord(
   db: ReturnType<typeof serviceDb>,
@@ -30,7 +32,7 @@ export async function deliveryRecord(
     db.from("deal_audit_logs").select("*").eq("deal_id", id).order("created_at"),
     db.from("deal_disputes").select("*").eq("deal_id", id).order("created_at"),
     db.from("delivery_returns").select("*").eq("deal_id", id).maybeSingle(),
-    db.from("products").select("title, category, specifications").eq("id", deal.product_id).maybeSingle(),
+    db.from("products").select("id, title, category, material, specifications, quantity, quantity_unit, description, ai_estimated_weight_kg, ai_weight_bulky").eq("id", deal.product_id).maybeSingle(),
   ]);
   queries.forEach((q) => check(q.error));
   const [delivery, payments, deposit, evidence, timeline, disputes, returns, product] = queries.map(
@@ -42,7 +44,9 @@ export async function deliveryRecord(
     : { data: null, error: null };
   check(qe);
 
-  return { deal, delivery, payments, deposit, evidence, timeline, disputes, returns, quote, product };
+  const canonicalWeight = product ? getCanonicalWeight(product) : null;
+
+  return { deal, delivery, payments, deposit, evidence, timeline, disputes, returns, quote, product, canonicalWeight };
 }
 
 export function parseLocation(input: unknown): Location {
@@ -128,9 +132,16 @@ export async function deliveryAction(
 
   if (action === "quote") {
     if (userId !== deal.buyer_id) throw new HttpError(403, "Buyer creates the quote");
+    // Obtain canonical product weight strictly from product listing / AI model
+    const { data: product } = await db.from("products").select("*").eq("id", deal.product_id).single();
+    const canonical = product ? getCanonicalWeight(product) : null;
+    if (!canonical || !canonical.weightKg || canonical.weightKg <= 0) {
+      throw new HttpError(422, "Delivery estimate is unavailable while shipment analysis is pending. EcoMatch support will arrange a manual logistics fallback.");
+    }
+
     const config = deliveryConfig();
     const providerInstance = logisticsProvider();
-    const quote = await providerInstance.getQuote(parseLocation(v.pickup), parseLocation(v.dropoff));
+    const quote = await providerInstance.getQuote(parseLocation(v.pickup), parseLocation(v.dropoff), canonical.weightKg);
     const pricing = priceQuote(Math.round(Number(deal.agreed_price) * 100), quote.basePaise, config.markup);
 
     return rpc(action, {
@@ -230,6 +241,13 @@ export async function deliveryAction(
 
     const providerInstance = logisticsProvider();
 
+    // Determine canonical weight strictly from product
+    const canonical = product ? getCanonicalWeight(product) : null;
+    if (!canonical || !canonical.weightKg || canonical.weightKg <= 0) {
+      throw new HttpError(422, "Delivery booking is unavailable while shipment analysis is pending. EcoMatch support will arrange a manual logistics fallback.");
+    }
+    const finalWeightKg = canonical.weightKg;
+
     // Call booking
     const booking = await providerInstance.createDelivery(
       {
@@ -247,7 +265,7 @@ export async function deliveryAction(
         productTitle: product?.title || "Circular Materials Lot",
         quantity: Number(product?.quantity || 1),
         pricePaise: Math.round(Number(deal.agreed_price) * 100),
-        weightKg: Number(b.weight || 1.0),
+        weightKg: finalWeightKg,
         dimensions: {
           length: Number(b.length || 20),
           breadth: Number(b.breadth || 15),
@@ -278,6 +296,11 @@ export async function deliveryAction(
         shiprocket_shipment_id: booking.shipmentId ? String(booking.shipmentId) : null,
         awb_code: booking.awbCode || null,
         courier_name: booking.courierName || null,
+        courier_company_id: q.courier_company_id ? String(q.courier_company_id) : null,
+        weight_kg: finalWeightKg,
+        length_cm: Number(b.length || 20),
+        breadth_cm: Number(b.breadth || 15),
+        height_cm: Number(b.height || 10),
         tracking_url: booking.trackingUrl,
         tracking_status: booking.status,
         last_tracking_sync_at: new Date().toISOString(),
