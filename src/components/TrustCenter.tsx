@@ -38,6 +38,11 @@ type Listing = {
   created_at: string;
   listing_ai_reviews: Review[];
   product_images?: { image_url: string; verification_status: string }[];
+  ai_visual_condition?: string | null;
+  ai_condition_confidence?: number | null;
+  ai_condition_reason?: string | null;
+  product_condition_disclosures?: { usage_band: string; usage_months?: number | null; known_issue_status: string; defects: { label?: string; severity?: string }[]; refurbished: string; repaired: string; repair_details?: string | null; other_details?: string | null; seller_attested_at?: string | null; disclosure_version?: number; overall_condition?: string | null; reuse_potential?: string | null }[];
+  disclosure_mismatches?: { code: string; reason: string }[];
 };
 
 type Risk = {
@@ -370,6 +375,8 @@ export default function TrustCenter() {
                           </div>
                         )}
                       </div>
+
+                      {(() => { const d = p.product_condition_disclosures?.[0]; return <div className="my-3 rounded-xl border border-sky-400/25 bg-sky-950/20 p-3 text-xs text-white/80"><p className="font-bold text-sky-300">AI OBSERVATION</p><p>Visual condition: {p.ai_visual_condition || "Unavailable"} {p.ai_condition_confidence != null ? `(${Math.round(p.ai_condition_confidence * 100)}%)` : ""}</p><p>{p.ai_condition_reason || "No AI visual reason available."}</p><p className="mt-2 font-bold text-emerald-300">SELLER DECLARATION</p>{d ? <><p>Usage: {d.usage_months ? `${d.usage_months} months` : d.usage_band} · Known defects: {d.known_issue_status}</p><p>Defects: {d.defects?.length ? d.defects.map((x) => `${x.label || "issue"} (${x.severity || "unspecified"})`).join(", ") : "None declared"}</p><p>Refurbished: {d.refurbished} · Repaired: {d.repaired}</p><p>{d.repair_details || d.other_details || "No additional seller notes."}</p><p>Attested: {d.seller_attested_at ? new Date(d.seller_attested_at).toLocaleString() : "Not attested"} · v{d.disclosure_version || 1}</p><p className="mt-2 font-bold text-lime-300">SYSTEM ASSESSMENT</p><p>Overall: {d.overall_condition || "Not assessed"} · Reuse: {d.reuse_potential || "Not assessed"}</p></> : <p>Seller condition disclosure not available for this older listing.</p>}{p.disclosure_mismatches?.length ? <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 font-semibold text-amber-200">Potential disclosure mismatch — manual review recommended. {p.disclosure_mismatches.map((m) => m.code).join(", ")}</p> : null}</div>; })()}
 
                       {review && (
                         <div className="my-3 text-xs text-white/80">

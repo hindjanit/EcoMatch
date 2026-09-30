@@ -8,8 +8,9 @@ type Part = { text: string } | { inlineData: { mimeType: string; data: string } 
 
 export async function geminiJSON(prompt: string, media: { bytes: Buffer; mimeType: string }[] = []): Promise<Record<string, unknown>> {
   const key = process.env.GEMINI_API_KEY,
-    model = process.env.GEMINI_TRUST_MODEL || "gemini-2.5-flash";
+    model = process.env.GEMINI_TRUST_MODEL;
   if (!key) throw new Error("AI trust model is not configured");
+  if (!model) throw new Error("AI trust model is not configured");
   if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Invalid model configuration");
 
   const parts: Part[] = [

@@ -88,6 +88,7 @@ type ProductImage = {
   image_url: string;
   verification_status: string;
 };
+type ConditionDisclosure = { usage_band: string; usage_months: number | null; known_issue_status: string; defects: { label?: string; severity?: string }[]; other_details: string | null; refurbished: string; repaired: string; repair_details: string | null; overall_condition: string | null; overall_condition_reason: string | null; reuse_potential: string | null };
 
 export default function ProductDetailsPage() {
   const params = useParams();
@@ -99,6 +100,7 @@ export default function ProductDetailsPage() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [images, setImages] = useState<ProductImage[]>([]);
+  const [disclosure, setDisclosure] = useState<ConditionDisclosure | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -155,6 +157,8 @@ export default function ProductDetailsPage() {
     }
 
     setProduct(productData as Product);
+    const { data: disclosureData } = await supabase.from("product_condition_disclosures").select("usage_band,usage_months,known_issue_status,defects,other_details,refurbished,repaired,repair_details,overall_condition,overall_condition_reason,reuse_potential").eq("product_id", productId).maybeSingle();
+    setDisclosure(disclosureData as ConditionDisclosure | null);
     const totalQty = Number(productData.quantity) || 1;
     setSelectedQuantity(totalQty);
 
@@ -584,6 +588,19 @@ export default function ProductDetailsPage() {
             )}
 
             {/* Description & Specifications Box */}
+            {disclosure && <section className="rounded-3xl border border-amber-400/30 bg-amber-950/20 p-6 shadow-xl">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-300">Condition disclosure</p>
+              <h3 className="mt-1 text-lg font-bold text-white">Known seller-declared defects</h3>
+              <div className="mt-4 grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+                <p><span className="text-slate-400">AI Visual Condition:</span> {product.condition || "Unavailable"}</p>
+                <p><span className="text-slate-400">Overall Condition:</span> {disclosure.overall_condition || "Based on seller disclosure"}</p>
+                <p><span className="text-slate-400">Usage:</span> {disclosure.usage_months ? `${disclosure.usage_months} months` : disclosure.usage_band}</p>
+                <p><span className="text-slate-400">Reuse Potential:</span> {disclosure.reuse_potential || "Not assessed"}</p>
+                <p><span className="text-slate-400">Refurbished:</span> {disclosure.refurbished}</p><p><span className="text-slate-400">Repair history:</span> {disclosure.repaired}</p>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-amber-100">{disclosure.defects?.length ? disclosure.defects.map((defect) => defect.label || "Declared issue").join(", ") : disclosure.known_issue_status === "no" ? "Seller declared no known defect." : "Seller is unsure about possible defects."}</p>
+              {(disclosure.other_details || disclosure.repair_details || disclosure.overall_condition_reason) && <p className="mt-2 text-sm text-slate-300">{disclosure.other_details || disclosure.repair_details || disclosure.overall_condition_reason}</p>}
+            </section>}
             <div className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/70 p-6 shadow-xl backdrop-blur-xl">
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-base font-bold text-white">
@@ -822,7 +839,7 @@ export default function ProductDetailsPage() {
                     <span className="font-semibold text-emerald-300">Seller Online</span>
                     <span className="text-white/40">· Phone Number Masked</span>
                   </div>
-                  <span className="text-[10px] text-white/40 font-mono">Encrypted WebRTC</span>
+                  <span className="text-[10px] text-white/40 font-mono">Private in-app audio call</span>
                 </div>
               </div>
             </div>

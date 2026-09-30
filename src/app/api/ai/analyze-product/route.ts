@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function visionFailure(code: string, message: string, status: number, details: Record<string, unknown> = {}) {
+  console.error("[Vision AI]", { code, apiKeyPresent: Boolean(process.env.GEMINI_API_KEY), ...details });
+  return NextResponse.json({ error: message, code }, { status });
+}
+
 const allowedCategories = [
   "Mobile Phones",
   "Electronics",
@@ -48,72 +53,6 @@ function cleanJson(text: string) {
   return trimmed;
 }
 
-function generateFallbackAnalysis(fileName: string, sellerText: string) {
-  const combined = `${fileName} ${sellerText}`.toLowerCase();
-
-  let category = "Electronics";
-  let productType = "Consumer / Business Lot";
-  let brand = "Generic";
-  let suggestedTitle = sellerText.split("\n")[0]?.trim() || "";
-  let condition = "Good";
-  let reusePotential = "High";
-  let visibleIssues: string[] = [];
-  let suggestedSpecifications: string[] = ["Standard Indian Specification", "Visual Integrity Inspected"];
-
-  if (combined.includes("iphone") || combined.includes("samsung") || combined.includes("phone") || combined.includes("mobile") || combined.includes("oneplus") || combined.includes("pixel") || combined.includes("redmi") || combined.includes("xiaomi") || combined.includes("vivo") || combined.includes("oppo")) {
-    category = "Mobile Phones";
-    productType = "Smartphone";
-    brand = combined.includes("iphone") || combined.includes("apple") ? "Apple" : combined.includes("samsung") ? "Samsung" : combined.includes("oneplus") ? "OnePlus" : combined.includes("pixel") ? "Google" : "Generic";
-    suggestedTitle = suggestedTitle || `${brand} Smartphone`;
-    suggestedSpecifications = ["Display intact & tested", "Original Housing", "All hardware buttons functional"];
-  } else if (combined.includes("laptop") || combined.includes("macbook") || combined.includes("dell") || combined.includes("lenovo") || combined.includes("hp") || combined.includes("thinkpad") || combined.includes("computer") || combined.includes("pc")) {
-    category = "Computers & Accessories";
-    productType = "Laptop Computer";
-    brand = combined.includes("macbook") || combined.includes("apple") ? "Apple" : combined.includes("dell") ? "Dell" : combined.includes("lenovo") || combined.includes("thinkpad") ? "Lenovo" : combined.includes("hp") ? "HP" : "Generic";
-    suggestedTitle = suggestedTitle || `${brand} Business Laptop`;
-    suggestedSpecifications = ["Keyboard and trackpad responsive", "Display panel in working order", "Power adapter port clean"];
-  } else if (combined.includes("aluminium") || combined.includes("aluminum") || combined.includes("steel") || combined.includes("copper") || combined.includes("brass") || combined.includes("metal") || combined.includes("iron")) {
-    category = "Metals";
-    productType = combined.includes("aluminium") ? "Aluminum Sheets / Extrusions" : combined.includes("copper") ? "Industrial Copper" : "Fabricated Metal Lot";
-    brand = "Industrial Standard";
-    suggestedTitle = suggestedTitle || `${productType} Secondary Lot`;
-    suggestedSpecifications = ["High circular scrap/reuse value", "Clean surface with minor oxidation"];
-  } else if (combined.includes("plastic") || combined.includes("hdpe") || combined.includes("pet") || combined.includes("pvc") || combined.includes("drum") || combined.includes("pallet")) {
-    category = "Plastic";
-    productType = "Thermoplastic Polymers";
-    suggestedTitle = suggestedTitle || "Commercial Plastic Material";
-    suggestedSpecifications = ["Recyclable polymer grade", "Clean batch ready for compounding"];
-  } else if (combined.includes("chair") || combined.includes("table") || combined.includes("desk") || combined.includes("sofa") || combined.includes("furniture") || combined.includes("cabinet")) {
-    category = "Furniture & Home";
-    productType = combined.includes("chair") ? "Ergonomic Office Chair" : combined.includes("table") ? "Workstation Table" : "Office Furniture";
-    suggestedTitle = suggestedTitle || productType;
-    suggestedSpecifications = ["Structural integrity intact", "Ergonomic durable build"];
-  } else if (combined.includes("machine") || combined.includes("motor") || combined.includes("pump") || combined.includes("generator") || combined.includes("equipment")) {
-    category = "Machinery & Equipment";
-    productType = "Industrial Machinery";
-    suggestedTitle = suggestedTitle || "Commercial Machinery Lot";
-    suggestedSpecifications = ["Heavy-duty commercial grade", "Operational mechanism intact"];
-  } else {
-    suggestedTitle = suggestedTitle || "Circular Secondary Asset";
-  }
-
-  return {
-    productName: suggestedTitle,
-    category,
-    productType,
-    brand,
-    condition,
-    conditionConfidence: 85,
-    classificationConfidence: 88,
-    visibleIssues,
-    suggestedTitle,
-    suggestedDescription: `${suggestedTitle} in ${condition.toLowerCase()} condition. Verified visual appearance suitable for circular reuse and resale on EcoMatch.`,
-    suggestedSpecifications,
-    reusePotential,
-    notes: "AI classification benchmarked via EcoMatch circular product intelligence.",
-  };
-}
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -121,29 +60,20 @@ export async function POST(request: Request) {
     const sellerText = String(formData.get("sellerText") || "");
 
     if (!(image instanceof File)) {
-      return NextResponse.json(
-        { error: "Please upload a product image first." },
-        { status: 400 }
-      );
+      return visionFailure("VISION_IMAGE_INVALID", "Please upload a product image first.", 400, { stage: "input_validation", imagePayloadCreated: false });
     }
 
     if (!image.type.startsWith("image/")) {
-      return NextResponse.json(
-        { error: "The selected file must be an image." },
-        { status: 400 }
-      );
+      return visionFailure("VISION_IMAGE_INVALID", "The selected file must be an image.", 400, { stage: "input_validation", imagePayloadCreated: false });
     }
 
     if (image.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Image must be 5MB or smaller." },
-        { status: 400 }
-      );
+      return visionFailure("VISION_IMAGE_INVALID", "Image must be 5MB or smaller.", 400, { stage: "input_validation", imageMime: image.type, imagePayloadCreated: false });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey) return NextResponse.json({ error: "Vision AI is not configured." }, { status: 503 });
+    if (!apiKey) return visionFailure("VISION_API_KEY_MISSING", "Vision AI is temporarily unavailable.", 503, { stage: "configuration" });
 
     const imageBytes = Buffer.from(await image.arrayBuffer());
     const imageBase64 = imageBytes.toString("base64");
@@ -200,8 +130,10 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const model = process.env.GEMINI_VISION_MODEL || process.env.GEMINI_TRUST_MODEL || "gemini-2.5-flash";
-      if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Invalid Vision AI model configuration.");
+      const model = process.env.GEMINI_VISION_MODEL;
+      if (!model) return visionFailure("VISION_MODEL_NOT_CONFIGURED", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", configuredModel: null, modelAccessible: "unknown", generateContentSupported: "unknown" });
+      if (!/^[a-zA-Z0-9.-]+$/.test(model)) return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model });
+      console.info("[Vision AI]", { stage: "request_start", configuredModel: model, apiKeyPresent: true, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true });
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const geminiResponse = await fetch(endpoint, {
@@ -236,8 +168,10 @@ ${sellerText || "No seller text provided."}
 
       if (!geminiResponse.ok) {
         const errorData = await geminiResponse.json().catch(() => null);
-        console.error("Gemini Vision API error:", geminiResponse.status, errorData);
-        return NextResponse.json({ error: `Vision AI unavailable (${geminiResponse.status}).` }, { status: 502 });
+        const upstreamCode = typeof errorData?.error?.status === "string" ? errorData.error.status : "UNKNOWN";
+        const code = geminiResponse.status === 404 ? "VISION_MODEL_NOT_FOUND" : geminiResponse.status === 401 || geminiResponse.status === 403 ? "VISION_AUTH_FAILED" : geminiResponse.status === 429 ? "VISION_RATE_LIMITED" : "VISION_UPSTREAM_ERROR";
+        const message = code === "VISION_RATE_LIMITED" ? "Vision AI is temporarily busy. Please try again." : "Vision AI is temporarily unavailable.";
+        return visionFailure(code, message, geminiResponse.status === 429 ? 429 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imageMime: mimeType, imagePayloadCreated: true });
       }
 
       const raw = await geminiResponse.json();
@@ -247,14 +181,14 @@ ${sellerText || "No seller text provided."}
         .trim();
 
       if (!responseText) {
-        return NextResponse.json({ error: "Vision AI returned no assessment." }, { status: 502 });
+        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_empty", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
       let analysis;
       try {
         analysis = JSON.parse(cleanJson(responseText));
       } catch {
-        return NextResponse.json({ error: "Vision AI returned malformed analysis." }, { status: 502 });
+        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_parse", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
       if (!allowedCategories.includes(analysis.category)) {
@@ -262,6 +196,7 @@ ${sellerText || "No seller text provided."}
       }
 
       if (!allowedConditions.includes(analysis.condition)) analysis.condition = "Unknown";
+      analysis.visualCondition = analysis.condition;
 
       analysis.classificationConfidence = Math.max(
         0,
@@ -288,21 +223,17 @@ ${sellerText || "No seller text provided."}
         ? analysis.suggestedSpecifications.slice(0, 6).map(String)
         : [];
 
+      console.info("[Vision AI]", { stage: "response_success", configuredModel: model, apiKeyPresent: true, modelAccessible: true, generateContentSupported: true, imageMime: mimeType, imagePayloadCreated: true });
       return NextResponse.json({ analysis });
     } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Vision AI analysis failed." }, { status: 502 });
+      const timeout = error instanceof Error && error.name === "TimeoutError";
+      return visionFailure(timeout ? "VISION_TIMEOUT" : "VISION_UPSTREAM_ERROR", timeout ? "Vision AI timed out. Please try again." : "Vision AI is temporarily unavailable.", 502, { stage: "request_exception", configuredModel: process.env.GEMINI_VISION_MODEL || null, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true, errorType: error instanceof Error ? error.name : "unknown" });
     }
   } catch (error) {
-    console.error("EcoMatch Vision API error:", error);
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while analyzing the product image.",
-      },
-      { status: 500 }
-    );
+    return visionFailure("VISION_REQUEST_INVALID", "We couldn't read that product image. Please try another image.", 400, {
+      stage: "request_parsing",
+      errorType: error instanceof Error ? error.name : "unknown",
+      imagePayloadCreated: false,
+    });
   }
 }

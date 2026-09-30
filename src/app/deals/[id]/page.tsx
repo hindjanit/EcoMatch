@@ -82,6 +82,8 @@ type Deal = {
   proximity_distance_meters?: number | null;
   meeting_safety_score?: number | null;
   is_disputed?: boolean;
+  buyer_disclosure_confirmation?: "matches" | "does_not_match" | null;
+  disclosure_version_confirmed?: number | null;
 };
 
 type Product = {
@@ -100,6 +102,7 @@ type Profile = {
   full_name: string | null;
   verification_status: string | null;
 };
+type Disclosure = { usage_band: string; usage_months: number | null; known_issue_status: string; defects: { label?: string; severity?: string }[]; refurbished: string; repaired: string; repair_details: string | null; other_details: string | null; overall_condition: string | null; reuse_potential: string | null; disclosure_version: number };
 
 type LocationSuggestion = {
   id: string;
@@ -155,6 +158,9 @@ export default function DealRoomPage() {
   const [image, setImage] = useState<string | null>(null);
   const [buyer, setBuyer] = useState<Profile | null>(null);
   const [seller, setSeller] = useState<Profile | null>(null);
+  const [disclosure, setDisclosure] = useState<Disclosure | null>(null);
+  const [mismatchReason, setMismatchReason] = useState("");
+  const [mismatchNotes, setMismatchNotes] = useState("");
   const [userId, setUserId] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -475,7 +481,7 @@ export default function DealRoomPage() {
     const current = dealData as Deal;
     setDeal(current);
 
-    const [productResult, imageResult, profilesResult, ledgerResult] = await Promise.all([
+    const [productResult, imageResult, profilesResult, ledgerResult, disclosureResult] = await Promise.all([
       supabase
         .from("products")
         .select("id,title,category,material,price,condition,status,current_owner_id")
@@ -491,10 +497,12 @@ export default function DealRoomPage() {
         .select("event_hash")
         .eq("deal_id", current.id)
         .maybeSingle(),
+      supabase.from("product_condition_disclosures").select("usage_band,usage_months,known_issue_status,defects,refurbished,repaired,repair_details,other_details,overall_condition,reuse_potential,disclosure_version").eq("product_id", current.product_id).maybeSingle(),
     ]);
 
     setProduct((productResult.data || null) as Product | null);
     setImage((imageResult.data || [])[0]?.image_url || null);
+    setDisclosure(disclosureResult.data as Disclosure | null);
 
     const profiles = (profilesResult.data || []) as Profile[];
     setBuyer(profiles.find((p) => p.id === current.buyer_id) || null);
@@ -830,6 +838,15 @@ export default function DealRoomPage() {
 
     await loadDealRoom(true);
     setActionLoading(false);
+  }
+
+  async function confirmDisclosure(matches: boolean) {
+    if (!deal) return;
+    setActionLoading(true); setError("");
+    const { data, error: rpcError } = await supabase.rpc("trust_confirm_condition_disclosure", { p_deal_id: deal.id, p_matches: matches, p_reason: matches ? null : mismatchReason, p_notes: matches ? null : mismatchNotes });
+    if (rpcError) setError(rpcError.message);
+    else setMessage(data?.status === "condition_dispute" ? "Condition dispute recorded. Handover and ownership transfer are frozen for review." : "Condition disclosure confirmed. Complete the existing OTP and handover checks to transfer ownership.");
+    await loadDealRoom(true); setActionLoading(false);
   }
 
   // Raise Dispute
@@ -1431,10 +1448,12 @@ export default function DealRoomPage() {
                   </div>
                 </div>
 
+                {userId === deal.buyer_id && disclosure && !deal.is_disputed && <section className="mt-5 rounded-2xl border border-amber-400/40 bg-amber-950/30 p-4 text-sm"><p className="font-bold text-amber-200">Seller condition disclosure · v{disclosure.disclosure_version}</p><p className="mt-2">Usage: {disclosure.usage_months ? `${disclosure.usage_months} months` : disclosure.usage_band} · Overall: {disclosure.overall_condition || "Not assessed"} · Reuse: {disclosure.reuse_potential || "Not assessed"}</p><p className="mt-1 font-semibold">Known defects: {disclosure.defects?.length ? disclosure.defects.map((x) => x.label || "Declared issue").join(", ") : "None declared"}</p><p className="mt-1">Refurbished: {disclosure.refurbished} · Repaired: {disclosure.repaired}</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => void confirmDisclosure(true)} disabled={actionLoading} className="min-h-12 rounded-xl bg-emerald-300 px-4 font-bold text-[#062016]">Product matches the disclosed condition</button></div><label className="mt-3 block font-semibold">If it does not match, what is different?<select value={mismatchReason} onChange={(e) => setMismatchReason(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-white p-2 text-black"><option value="">Select a reason</option><option>Undisclosed physical damage</option><option>Functional issue not disclosed</option><option>Missing part/accessory</option><option>Condition worse than described</option><option>Different product/specification</option><option>Other</option></select></label><textarea value={mismatchNotes} onChange={(e) => setMismatchNotes(e.target.value)} placeholder="Optional notes" className="mt-2 w-full rounded-xl bg-white p-2 text-black" /><button type="button" onClick={() => void confirmDisclosure(false)} disabled={actionLoading || !mismatchReason} className="mt-2 min-h-12 rounded-xl bg-rose-500 px-4 font-bold text-white">Product does not match disclosure — stop handover</button></section>}
+
                 {/* Confirm Button */}
                 <button
                   onClick={confirmHandover}
-                  disabled={actionLoading}
+                  disabled={actionLoading || (userId === deal.buyer_id && Boolean(disclosure) && deal.buyer_disclosure_confirmation !== "matches")}
                   className="mt-5 w-full rounded-2xl bg-emerald-400 py-3.5 text-xs font-black text-[#03140e] hover:bg-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)] transition active:scale-95 disabled:opacity-50"
                 >
                   {actionLoading ? "Verifying Transaction..." : "✓ Confirm Physical Handover (Execute Transfer)"}

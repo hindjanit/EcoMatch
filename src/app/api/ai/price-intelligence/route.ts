@@ -123,6 +123,8 @@ export async function POST(request: Request) {
     const sellerPrice = Number(body.sellerPrice || 0);
     const purchasePrice = Number(body.purchasePrice || 0);
     const monthsUsed = Math.max(0, Number(body.monthsUsed || 0));
+    const disclosure = body.disclosure && typeof body.disclosure === "object" ? body.disclosure : null;
+    const disclosureSummary = disclosure ? JSON.stringify(disclosure).slice(0, 2000) : "No seller disclosure provided.";
 
     if (!title && !productType) {
       return NextResponse.json(
@@ -192,6 +194,7 @@ Specifications: "${specifications || "Standard"}"
 Seller Asking Resale Price: ₹${sellerPrice}
 Seller Past Offline Purchase Price: ${purchasePrice > 0 ? `₹${purchasePrice}` : "Not specified"}
 Months Used: ${monthsUsed}
+Seller condition disclosure (first-party data): ${disclosureSummary}
 
 ${onlineSnippets.length > 0 ? `Current Live Online Shopping references:\n${onlineSnippets.join("\n")}\n` : ""}
 
@@ -199,6 +202,7 @@ CRITICAL PRICING RULES:
 1. ALWAYS base the reference price on the CURRENT BRAND NEW ONLINE SELLING PRICE in India (e.g. on Amazon.in, Flipkart, Croma, Reliance Digital, Brand Store).
 2. DO NOT use the seller's past offline purchase price or printed MRP as the market baseline if the product currently sells for less online (e.g. if an item has MRP ₹1,799 and seller bought it offline for ₹1,000, but online new price is ₹599-₹650, the current new reference price is ₹599-₹650).
 3. Calculate fair secondary resale range (fairMin, fairMax) strictly by depreciating the CURRENT ONLINE NEW PRICE for ${monthsUsed} months of use and ${condition} condition.
+3a. Account for seller-declared defects, severity, refurbishment and repair history. Do not claim a defect is visually verified and do not invent a reference market price.
 4. Compare the seller asking price (₹${sellerPrice}) with the fair resale range and current new price to determine the verdict:
    - "Great Deal": significantly below fair value (attractive buy)
    - "Good Deal": below fair value
@@ -283,20 +287,25 @@ CRITICAL PRICING RULES:
       }
     }
 
-    // Step 3: Heuristic statistical fallback
-    const estimatedNew = sellerPrice < 1000
-      ? Math.round(sellerPrice * 1.4)
-      : Math.round(sellerPrice * 1.25);
+    // Step 3: Never invent a market reference from the seller's asking price.
+    // A seller-provided purchase value is an explicit base, not a claimed current market price.
+    if (!purchasePrice || purchasePrice <= 0) {
+      return NextResponse.json({ analysis: { referencePrice: null, marketLow: null, marketHigh: null, marketPriceFound: false, usedOnlineResearch: false, pricingMethod: "Fair price unavailable — market reference could not be established", productMatched: title, matchQuality: "No trustworthy reference", fairMin: null, fairMax: null, sellerPrice: Math.round(sellerPrice), verdict: "Reference required", confidence: 0, ageFactor: null, conditionFactor: null, reason: "A market-based fair price needs a genuine reference price or source. Seller condition factors are recorded but no rupee estimate was fabricated.", researchSummary: "No market reference available.", sources: [], priceSamples: [], purchasePrice: null } });
+    }
+    const estimatedNew = purchasePrice;
 
     const ageFactor = getAgeFactor(category, monthsUsed);
     const conditionFactor = getConditionFactor(condition);
+    const defectSeverities = Array.isArray((disclosure as { defects?: { severity?: string }[] } | null)?.defects) ? (disclosure as { defects: { severity?: string }[] }).defects.map((d) => d.severity) : [];
+    const conditionAdjustment = defectSeverities.includes("critical") ? 0.45 : defectSeverities.includes("major") ? 0.62 : defectSeverities.includes("moderate") ? 0.78 : defectSeverities.includes("minor") ? 0.9 : 1;
+    const repairAdjustment = (disclosure as { repaired?: string } | null)?.repaired === "yes" ? 0.92 : 1;
 
-    let fairMid = estimatedNew * ageFactor * conditionFactor;
+    let fairMid = estimatedNew * ageFactor * conditionFactor * conditionAdjustment * repairAdjustment;
     if (condition !== "New") {
       fairMid = Math.min(fairMid, estimatedNew * 0.82);
     }
 
-    let fairMin = Math.max(1, Math.round(fairMid * 0.9));
+    const fairMin = Math.max(1, Math.round(fairMid * 0.9));
     let fairMax = Math.max(fairMin, Math.round(fairMid * 1.1));
     if (condition !== "New") {
       fairMax = Math.min(fairMax, Math.round(estimatedNew * 0.85));
@@ -317,7 +326,7 @@ CRITICAL PRICING RULES:
         marketHigh: Math.round(fairMax * 1.05),
         marketPriceFound: false,
         usedOnlineResearch: false,
-        pricingMethod: "EcoMatch Depreciation & Category Resale Benchmark",
+        pricingMethod: "EcoMatch condition-adjusted estimate from seller-provided base value (not a market reference)",
         productMatched: title,
         matchQuality: "Statistical",
         fairMin,
@@ -327,8 +336,8 @@ CRITICAL PRICING RULES:
         confidence: 82,
         ageFactor: Number(ageFactor.toFixed(3)),
         conditionFactor,
-        reason: `EcoMatch estimated secondary resale value based on Indian online retail market benchmark of approx ₹${Math.round(estimatedNew).toLocaleString("en-IN")}, factored for ${monthsUsed} months use and ${condition} condition.`,
-        researchSummary: "Model-guided pricing curve calculated using circular market depreciation.",
+        reason: `EcoMatch condition-adjusted estimate from the seller-provided base value of ₹${Math.round(estimatedNew).toLocaleString("en-IN")}, factored for ${monthsUsed} months use and ${condition} condition. This is not a current market reference.`,
+        researchSummary: "No current market benchmark was established.",
         sources: [],
         priceSamples: [Math.round(estimatedNew)],
         purchasePrice: purchasePrice || null,

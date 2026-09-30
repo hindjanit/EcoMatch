@@ -1,6 +1,7 @@
 import { actor, bodyJson, check, fail, rateLimit } from "@/lib/trust/server";
 import { deliveryAction } from "@/lib/trust/delivery";
 import { isShiprocketConfigured, getShiprocketBaseUrl } from "@/lib/shiprocket/client";
+import { detectDisclosureMismatch } from "@/lib/condition-disclosure";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
       db
         .from("products")
         .select(
-          "id,title,seller_id,status,safety_score,approval_method,auto_approved,manual_review_required,moderation_decision,moderation_risk_level,moderation_confidence,created_at,listing_ai_reviews(*),product_images(image_url,verification_status)"
+          "id,title,seller_id,status,safety_score,approval_method,auto_approved,manual_review_required,moderation_decision,moderation_risk_level,moderation_confidence,created_at,ai_visual_condition,ai_condition_confidence,ai_condition_reason,listing_ai_reviews(*),product_images(image_url,verification_status),product_condition_disclosures(*)"
         )
         .order("created_at", { ascending: false })
         .limit(100),
@@ -52,7 +53,10 @@ export async function GET(request: Request) {
     results.forEach((r) => check(r.error));
 
     return Response.json({
-      listings: results[0].data,
+      listings: (results[0].data || []).map((listing) => {
+        const disclosure = Array.isArray(listing.product_condition_disclosures) ? listing.product_condition_disclosures[0] : listing.product_condition_disclosures;
+        return { ...listing, disclosure_mismatches: detectDisclosureMismatch(listing.ai_visual_condition, listing.ai_condition_reason, disclosure) };
+      }),
       risks: results[1].data,
       deliveries: results[2].data,
       recordings: results[3].data,

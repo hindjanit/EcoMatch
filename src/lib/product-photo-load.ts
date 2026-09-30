@@ -14,7 +14,8 @@ export async function photoLoad(product: LoadProduct, imageUrl: string) {
   if (!reader) throw new Error('Listing photo is unavailable.');
   const chunks: Uint8Array[] = []; let size = 0;
   for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 4_000_000) { await reader.cancel(); throw new Error('Photo is too large to scan.'); } chunks.push(value); }
-  const model = process.env.GEMINI_TRUST_MODEL || 'gemini-3.5-flash-lite';
+  const model = process.env.GEMINI_TRUST_MODEL;
+  if (!model) throw new Error('Photo weight estimation is unavailable. Use the labelled listing estimate and confirm the weight.');
   if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error('Photo estimation is unavailable.');
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, signal: AbortSignal.timeout(20000),

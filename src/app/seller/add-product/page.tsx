@@ -9,6 +9,7 @@ import { calculateProductRisk } from "@/lib/productRisk";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import { assessDisclosure, questionsForCategory, USAGE_BANDS, type DeclaredDefect } from "@/lib/condition-disclosure";
 
 const categories = MARKETPLACE_CATEGORIES;
 const conditions = PRODUCT_CONDITIONS;
@@ -85,6 +86,15 @@ export default function AddProductPage() {
   const [isNegotiable, setIsNegotiable] = useState(false);
 
   const [condition, setCondition] = useState("");
+  const [usageBand, setUsageBand] = useState("never");
+  const [usageMonths, setUsageMonths] = useState("");
+  const [knownIssueStatus, setKnownIssueStatus] = useState<"yes" | "no" | "not_sure">("no");
+  const [declaredDefects, setDeclaredDefects] = useState<DeclaredDefect[]>([]);
+  const [otherIssueDetails, setOtherIssueDetails] = useState("");
+  const [refurbished, setRefurbished] = useState("not_applicable");
+  const [repaired, setRepaired] = useState("unknown");
+  const [repairDetails, setRepairDetails] = useState("");
+  const [disclosureConfirmed, setDisclosureConfirmed] = useState(false);
 
   // -----------------------------
   // AI CLASSIFICATION
@@ -512,6 +522,7 @@ export default function AddProductPage() {
           sellerPrice: Number(price),
           purchasePrice: Number(purchasePrice || 0),
           monthsUsed: Number(monthsUsed || 0),
+          disclosure: { usageBand, usageMonths: Number(usageMonths || 0), knownIssueStatus, defects: declaredDefects, refurbished, repaired },
         }),
       });
 
@@ -719,10 +730,7 @@ export default function AddProductPage() {
       return;
     }
 
-    if (!classification) {
-      setError("Please classify the product before submitting the listing.");
-      return;
-    }
+    if (!disclosureConfirmed) { setError("Please confirm that all known defects, repairs and refurbishment information are disclosed."); return; }
 
     if (selectedImages.length === 0) {
       setError("Please upload at least one product image.");
@@ -915,6 +923,17 @@ export default function AddProductPage() {
       if (productError || !product) {
         throw new Error(productError?.message || "Could not create product.");
       }
+
+      const disclosure = { usageBand, usageMonths: usageMonths ? Number(usageMonths) : null, knownIssueStatus, defects: declaredDefects, otherDetails: otherIssueDetails.trim() || null, refurbished, repaired, repairDetails: repairDetails.trim() || null };
+      const assessment = assessDisclosure(visionAnalysis?.condition, disclosure);
+      const { error: disclosureError } = await supabase.from("product_condition_disclosures").insert({
+        product_id: product.id, seller_id: user.id, usage_band: usageBand, usage_months: disclosure.usageMonths,
+        known_issue_status: knownIssueStatus, defects: declaredDefects, other_details: disclosure.otherDetails,
+        refurbished, repaired, repair_details: disclosure.repairDetails, seller_attested_at: new Date().toISOString(), disclosure_version: 1,
+        overall_condition: assessment.overallCondition, overall_condition_reason: assessment.reason,
+        reuse_potential: assessment.reusePotential, reuse_potential_reason: assessment.reason,
+      });
+      if (disclosureError) throw new Error(disclosureError.message || "Could not save condition disclosure.");
 
       // -----------------------------
       // UPLOAD PRODUCT IMAGES
@@ -1292,6 +1311,37 @@ export default function AddProductPage() {
                   ))}
                 </select>
               </div>
+
+              <section className="md:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#187052]">Seller declaration</p>
+                <h3 className="mt-1 text-lg font-bold text-[#163038]">Condition &amp; Defect Disclosure</h3>
+                <p className="mt-1 text-sm text-slate-600">This is your declaration, separate from any AI visual estimate. It remains available if Vision AI is unavailable.</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-semibold text-[#163038]">How long has this product been used?
+                    <select value={usageBand} onChange={(e) => setUsageBand(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3">
+                      {USAGE_BANDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-sm font-semibold text-[#163038]">Precise usage (months, optional)
+                    <input type="number" min="0" value={usageMonths} onChange={(e) => setUsageMonths(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 px-3" />
+                  </label>
+                  <label className="text-sm font-semibold text-[#163038]">Known defect or functional issue?
+                    <select value={knownIssueStatus} onChange={(e) => { setKnownIssueStatus(e.target.value as "yes" | "no" | "not_sure"); if (e.target.value === "no") setDeclaredDefects([]); }} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3">
+                      <option value="no">No known defect</option><option value="yes">Yes</option><option value="not_sure">Not sure</option>
+                    </select>
+                  </label>
+                  <label className="text-sm font-semibold text-[#163038]">Refurbished?
+                    <select value={refurbished} onChange={(e) => setRefurbished(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3"><option value="not_applicable">Not applicable</option><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Unknown</option></select>
+                  </label>
+                  <label className="text-sm font-semibold text-[#163038]">Previously repaired?
+                    <select value={repaired} onChange={(e) => setRepaired(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select>
+                  </label>
+                </div>
+                {knownIssueStatus !== "no" && <div className="mt-4"><p className="text-sm font-semibold text-[#163038]">Select every known issue</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{questionsForCategory(category).map((defect) => <label key={defect.key} className="flex min-h-12 items-center gap-2 rounded-xl border border-emerald-100 bg-white px-3 text-sm"><input type="checkbox" checked={declaredDefects.some((item) => item.key === defect.key)} onChange={(e) => setDeclaredDefects((items) => e.target.checked ? [...items, defect] : items.filter((item) => item.key !== defect.key))} />{defect.label} <span className="ml-auto text-xs text-slate-500">{defect.severity}</span></label>)}</div></div>}
+                <label className="mt-4 block text-sm font-semibold text-[#163038]">Other issue / additional details<textarea value={otherIssueDetails} onChange={(e) => setOtherIssueDetails(e.target.value)} rows={2} className="mt-2 w-full rounded-xl border border-slate-300 p-3" /></label>
+                {repaired === "yes" && <label className="mt-4 block text-sm font-semibold text-[#163038]">Repair details (optional)<textarea value={repairDetails} onChange={(e) => setRepairDetails(e.target.value)} rows={2} className="mt-2 w-full rounded-xl border border-slate-300 p-3" /></label>}
+                <label className="mt-4 flex min-h-12 items-center gap-3 text-sm font-semibold text-[#163038]"><input type="checkbox" checked={disclosureConfirmed} onChange={(e) => setDisclosureConfirmed(e.target.checked)} />I confirm that I have disclosed all known defects, repairs and refurbishment information to the best of my knowledge.</label>
+              </section>
 
               {/* DESCRIPTION */}
               <div className="md:col-span-2">
