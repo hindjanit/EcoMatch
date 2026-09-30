@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { calculateFairPrice, type ConditionFactor, type HardDeduction } from "@/lib/fair-price";
+import { buildConditionFactors, calculateFairPrice, type HardDeduction } from "@/lib/fair-price";
+import { deriveAuthoritativeCondition, type TrustedVisionAssessment } from "@/lib/condition-authority";
+import { actor, HttpError } from "@/lib/trust/server";
 
 export const runtime = "nodejs";
 
@@ -113,6 +115,7 @@ function parsePriceText(value?: string) {
 
 export async function POST(request: Request) {
   try {
+    const { db, user } = await actor(request);
     const body = await request.json();
 
     const title = String(body.title || "").trim();
@@ -123,7 +126,8 @@ export async function POST(request: Request) {
     const specifications = String(body.specifications || "").trim();
     const sellerPrice = Number(body.sellerPrice || 0);
     const purchasePrice = Number(body.purchasePrice || 0);
-    const monthsUsed = Math.max(0, Number(body.monthsUsed || 0));
+    const ageProvided = body.monthsUsed !== null && body.monthsUsed !== undefined && body.monthsUsed !== "";
+    const monthsUsed = Math.max(0, Number(ageProvided ? body.monthsUsed : 0));
     const disclosure = body.disclosure && typeof body.disclosure === "object" ? body.disclosure : null;
     const disclosureSummary = disclosure ? JSON.stringify(disclosure).slice(0, 2000) : "No seller disclosure provided.";
 
@@ -192,18 +196,26 @@ export async function POST(request: Request) {
     // is labelled as such rather than represented as current market data.
     const referencePrice = onlinePrices.length ? median(onlinePrices) : purchasePrice > 0 ? purchasePrice : null;
     const referenceSource = onlinePrices.length ? "current_market" : purchasePrice > 0 ? "seller_reference" : undefined;
-    const conditionFactors: ConditionFactor[] = [{ factor: "declared_condition", value: getConditionFactor(condition), source: "seller condition" }];
     const defects = Array.isArray((disclosure as { defects?: { key?: string; severity?: string }[] } | null)?.defects)
       ? (disclosure as { defects: { key?: string; severity?: string }[] }).defects
       : [];
-    for (const defect of defects) {
-      const severityFactor = defect.severity === "critical" ? 0.7 : defect.severity === "major" ? 0.82 : defect.severity === "moderate" ? 0.9 : defect.severity === "minor" ? 0.96 : 1;
-      if (severityFactor < 1) conditionFactors.push({ factor: `declared_${defect.severity}_defect`, value: severityFactor, source: "seller disclosure", defectKey: defect.key });
+    const observations = Array.isArray(body.visionObservations) ? body.visionObservations.filter((value: unknown): value is string => typeof value === "string").slice(0, 20) : [];
+    const assessmentId = typeof body.assessmentId === "string" ? body.assessmentId : null;
+    let authoritative = null as ReturnType<typeof deriveAuthoritativeCondition> | null;
+    if (assessmentId) {
+      const { data: record, error } = await db.from("vision_condition_assessments").select("id,seller_id,assessment,clarification_questions").eq("id", assessmentId).eq("seller_id", user.id).single();
+      if (error || !record) throw new HttpError(403, "Vision assessment is not available for this seller.");
+      authoritative = deriveAuthoritativeCondition({ id: record.id, sellerId: record.seller_id, assessment: record.assessment, questions: record.clarification_questions } as TrustedVisionAssessment, body.clarificationAnswers);
     }
+    // Legacy listings retain the text-only path. New Phase 25 assessments are
+    // read from server persistence; a browser assessment payload is ignored.
+    const structuredFactors = authoritative ? authoritative.factors.map((factor) => ({ factor: factor.dimension as "cosmetic" | "structural" | "functional" | "technical" | "completeness", value: factor.factor, source: "vision+seller" as const, evidence: factor.evidence })) : [];
+    const conditionEvidence = buildConditionFactors({ category, productType: productType || title, observations, knownIssueStatus: (disclosure as { knownIssueStatus?: string } | null)?.knownIssueStatus, defects });
+    const conditionFactors = structuredFactors.length ? structuredFactors : conditionEvidence.factors;
     const hardDeductions = Array.isArray(body.hardDeductions)
       ? body.hardDeductions.filter((entry: unknown): entry is HardDeduction => Boolean(entry && typeof entry === "object" && typeof (entry as HardDeduction).id === "string" && typeof (entry as HardDeduction).amount === "number" && typeof (entry as HardDeduction).reason === "string"))
       : [];
-    const valuation = calculateFairPrice({ referencePrice, category, productType: productType || title, ageMonths: monthsUsed, conditionFactors, hardDeductions, demandMultiplier: 1, referenceSource });
+    const valuation = calculateFairPrice({ referencePrice, category, productType: productType || title, ageMonths: ageProvided ? monthsUsed : null, conditionFactors, hardDeductions, demandMultiplier: 1, referenceSource });
     if (!valuation.available) {
       return NextResponse.json({ error: valuation.reason }, { status: 422 });
     }
@@ -214,10 +226,10 @@ export async function POST(request: Request) {
       marketPriceFound: onlinePrices.length > 0, usedOnlineResearch: onlinePrices.length > 0,
       pricingMethod: `Universal Valuation Engine · ${valuation.policy.depreciationModel === "reducing_balance" ? "reducing-balance" : "linear residual-floor"} depreciation`,
       productMatched: title, matchQuality: onlinePrices.length ? "Matched current retail references" : "Seller-provided reference", fairMin: deterministicFairMin, fairMax: deterministicFairMax, sellerPrice: Math.round(sellerPrice),
-      verdict: calculateVerdict(sellerPrice, deterministicFairMin, deterministicFairMax, valuation.referencePrice, condition), confidence: valuation.confidence === "High" ? 90 : valuation.confidence === "Medium" ? 70 : 45,
-      valuationConfidence: valuation.confidence, ageFactor: Number((valuation.basePrice / valuation.referencePrice).toFixed(3)), conditionFactor: valuation.conditionFactor,
+      verdict: valuation.confidenceLabel === "Low" ? "Asking price compared with estimated range — low confidence" : calculateVerdict(sellerPrice, deterministicFairMin, deterministicFairMax, valuation.referencePrice, condition), confidence: valuation.confidence,
+      valuationConfidence: valuation.confidenceLabel, valuationProfile: valuation.valuationProfile, profileReason: valuation.profileReason, policy: valuation.policy, basePrice: valuation.basePrice, residualFloor: valuation.residualFloor, conditionFactors: valuation.factors, unknownConditionDimensions: authoritative ? Object.entries(authoritative.assessment.conditionDimensions).filter(([, value]) => value.status === "unknown").map(([dimension]) => dimension) : conditionEvidence.unknownDimensions, conditionAdjustedValue: valuation.conditionAdjustedValue, ageKnown: valuation.ageKnown, ageFactor: Number((valuation.basePrice / valuation.referencePrice).toFixed(3)), conditionFactor: valuation.conditionMultiplier,
       hardDeductions: valuation.hardDeductionTotal, demandMultiplier: valuation.demandMultiplier, demandExplanation: valuation.demandExplanation,
-      reason: `Reference ₹${valuation.referencePrice}; age-adjusted base ₹${valuation.basePrice}; condition factor ×${valuation.conditionFactor}; hard deductions -₹${valuation.hardDeductionTotal}; demand ×${valuation.demandMultiplier}. Recommended range ₹${deterministicFairMin}–₹${deterministicFairMax}.`,
+      reason: `Reference ₹${valuation.referencePrice}; age-adjusted base ₹${valuation.basePrice}; condition factor ×${valuation.conditionMultiplier}; hard deductions -₹${valuation.hardDeductionTotal}; demand ×${valuation.demandMultiplier}. Recommended range ₹${deterministicFairMin}–₹${deterministicFairMax}.`,
       researchSummary: valuation.demandExplanation, sources: [], priceSamples: onlinePrices, purchasePrice: purchasePrice || null,
     } });
 

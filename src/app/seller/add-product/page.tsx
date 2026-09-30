@@ -10,6 +10,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import { assessDisclosure, questionsForCategory, USAGE_BANDS, type DeclaredDefect } from "@/lib/condition-disclosure";
+import { type ClarificationQuestion, type ConditionAssessment } from "@/lib/condition-assessment";
 
 const categories = MARKETPLACE_CATEGORIES;
 const conditions = PRODUCT_CONDITIONS;
@@ -32,6 +33,9 @@ type VisionAnalysis = {
   suggestedSpecifications: string[];
   reusePotential: "High" | "Medium" | "Low" | string;
   notes: string;
+  conditionAssessment?: ConditionAssessment;
+  clarificationQuestions?: ClarificationQuestion[];
+  assessmentId?: string;
 };
 
 type PriceAnalysis = {
@@ -51,6 +55,18 @@ type PriceAnalysis = {
   reason: string;
   researchSummary: string;
   sources: { title: string; url: string }[];
+  valuationConfidence?: "High" | "Medium" | "Low";
+  valuationProfile?: string;
+  profileReason?: string;
+  basePrice?: number;
+  residualFloor?: number;
+  conditionAdjustedValue?: number;
+  conditionFactors?: { factor: string; value: number; source: string; evidence: string[] }[];
+  unknownConditionDimensions?: string[];
+  hardDeductions?: number;
+  demandMultiplier?: number;
+  demandExplanation?: string;
+  policy?: { depreciationModel: string; annualRate?: number; usefulLifeYears?: number; residualFloorPercent: number; assumption: string };
 };
 
 export default function AddProductPage() {
@@ -114,6 +130,7 @@ export default function AddProductPage() {
     null,
   );
   const [visionLoading, setVisionLoading] = useState(false);
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
 
   const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(
     null,
@@ -397,6 +414,7 @@ export default function AddProductPage() {
       const analysis = payload.analysis as VisionAnalysis;
 
       setVisionAnalysis(analysis);
+      setClarificationAnswers({});
 
       // Automatically populate form inputs directly with AI Vision findings
       if (analysis.suggestedTitle || analysis.productName) {
@@ -521,8 +539,11 @@ export default function AddProductPage() {
           specifications,
           sellerPrice: Number(price),
           purchasePrice: Number(purchasePrice || 0),
-          monthsUsed: Number(monthsUsed || 0),
+          monthsUsed: monthsUsed === "" ? null : Number(monthsUsed),
           disclosure: { usageBand, usageMonths: Number(usageMonths || 0), knownIssueStatus, defects: declaredDefects, refurbished, repaired },
+          visionObservations: [visionAnalysis?.conditionReason, ...(visionAnalysis?.visibleIssues || [])].filter(Boolean),
+          assessmentId: visionAnalysis?.assessmentId,
+          clarificationAnswers,
         }),
       });
 
@@ -926,14 +947,12 @@ export default function AddProductPage() {
 
       const disclosure = { usageBand, usageMonths: usageMonths ? Number(usageMonths) : null, knownIssueStatus, defects: declaredDefects, otherDetails: otherIssueDetails.trim() || null, refurbished, repaired, repairDetails: repairDetails.trim() || null };
       const assessment = assessDisclosure(visionAnalysis?.condition, disclosure);
-      const { error: disclosureError } = await supabase.from("product_condition_disclosures").insert({
-        product_id: product.id, seller_id: user.id, usage_band: usageBand, usage_months: disclosure.usageMonths,
-        known_issue_status: knownIssueStatus, defects: declaredDefects, other_details: disclosure.otherDetails,
-        refurbished, repaired, repair_details: disclosure.repairDetails, seller_attested_at: new Date().toISOString(), disclosure_version: 1,
-        overall_condition: assessment.overallCondition, overall_condition_reason: assessment.reason,
-        reuse_potential: assessment.reusePotential, reuse_potential_reason: assessment.reason,
+      await trustPost("/api/condition/disclosure", {
+        productId: product.id, assessmentId: visionAnalysis?.assessmentId || null, answers: clarificationAnswers,
+        usageBand, usageMonths: disclosure.usageMonths, knownIssueStatus, defects: declaredDefects, otherDetails: disclosure.otherDetails,
+        refurbished, repaired, repairDetails: disclosure.repairDetails,
+        overallCondition: assessment.overallCondition, overallConditionReason: assessment.reason, reusePotential: assessment.reusePotential, reusePotentialReason: assessment.reason,
       });
-      if (disclosureError) throw new Error(disclosureError.message || "Could not save condition disclosure.");
 
       // -----------------------------
       // UPLOAD PRODUCT IMAGES
@@ -1735,6 +1754,25 @@ export default function AddProductPage() {
                     </div>
                   )}
 
+                  {visionAnalysis.conditionAssessment && (
+                    <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                      <p className="text-xs font-bold uppercase text-sky-800">AI condition analysis</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {Object.entries(visionAnalysis.conditionAssessment.conditionDimensions).map(([dimension, result]) => (
+                          <div key={dimension} className="rounded-lg bg-white p-3 text-sm text-slate-700"><strong className="capitalize">{dimension}</strong><p className="mt-1">{result.status === "unknown" ? "Verification required" : result.status.replaceAll("_", " ")}</p>{result.evidence?.[0] ? <p className="mt-1 text-xs text-slate-500">{result.evidence[0]}</p> : null}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {visionAnalysis.clarificationQuestions?.length ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="font-bold text-[#163038]">Help us complete the condition assessment</p>
+                      <p className="mt-1 text-sm text-slate-600">AI found a few details that photos cannot verify.</p>
+                      <div className="mt-3 space-y-4">{visionAnalysis.clarificationQuestions.map((question) => <div key={question.id}><p className="text-sm font-semibold text-[#163038]">{question.prompt}</p><div className="mt-2 flex flex-wrap gap-2">{question.options.map((option) => <button type="button" key={option} onClick={() => setClarificationAnswers((answers) => ({ ...answers, [question.id]: option }))} className={`min-h-12 rounded-lg border px-4 text-sm font-semibold ${clarificationAnswers[question.id] === option ? "border-emerald-700 bg-emerald-700 text-white" : "border-emerald-200 bg-white text-emerald-800"}`}>{option === "not_sure" ? "Not sure" : option === "yes" ? "Yes" : "No"}</button>)}</div></div>)}</div>
+                    </div>
+                  ) : visionAnalysis.conditionAssessment ? <p className="mt-4 text-sm font-semibold text-emerald-700">Condition assessment complete.</p> : null}
+
                   <div className="mt-4 rounded-xl bg-[#f7faf9] p-4">
                     <p className="text-xs font-bold uppercase text-gray-500">
                       AI note
@@ -1850,6 +1888,7 @@ export default function AddProductPage() {
                 <p className="mt-4 text-sm leading-6 text-gray-600">
                   {priceAnalysis.reason}
                 </p>
+                {priceAnalysis.valuationProfile && <details className="mt-4 rounded-xl border border-purple-100 bg-purple-50 p-4 text-sm text-[#163038]"><summary className="cursor-pointer font-bold">How was this calculated?</summary><div className="mt-3 space-y-2"><p><strong>Reference price:</strong> ₹{priceAnalysis.referencePrice.toLocaleString("en-IN")}</p><p><strong>Valuation profile:</strong> {priceAnalysis.valuationProfile.replaceAll("_", " ")} — {priceAnalysis.profileReason}</p><p><strong>Depreciation:</strong> {priceAnalysis.policy?.depreciationModel === "reducing_balance" ? `Reducing balance at ${(priceAnalysis.policy.annualRate || 0) * 100}% annually` : `Linear over ${priceAnalysis.policy?.usefulLifeYears} years with residual floor ₹${priceAnalysis.residualFloor}`}</p><p><strong>Age-adjusted base price:</strong> ₹{priceAnalysis.basePrice?.toLocaleString("en-IN")}</p><p><strong>Condition-adjusted value:</strong> ₹{priceAnalysis.conditionAdjustedValue?.toLocaleString("en-IN")}</p>{priceAnalysis.conditionFactors?.map((factor) => <p key={factor.factor}><strong>{factor.factor}:</strong> ×{factor.value} · {factor.evidence.join(", ")} ({factor.source})</p>)}{priceAnalysis.unknownConditionDimensions?.length ? <p><strong>Not assessed:</strong> {priceAnalysis.unknownConditionDimensions.join(", ")} — unknown is not treated as damage.</p> : null}<p><strong>Hard deductions:</strong> ₹{priceAnalysis.hardDeductions || 0}</p><p><strong>Demand:</strong> ×{priceAnalysis.demandMultiplier || 1} · {priceAnalysis.demandExplanation}</p><p><strong>Valuation confidence:</strong> {priceAnalysis.valuationConfidence}</p></div></details>}
                 {priceAnalysis.researchSummary && (
                   <p className="mt-2 text-xs leading-5 text-gray-500">
                     Market research: {priceAnalysis.researchSummary}

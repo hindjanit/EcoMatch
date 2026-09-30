@@ -5,7 +5,10 @@ import { cookies } from "next/headers";
 export class HttpError extends Error {constructor(public status:number,message:string){super(message);}}
 export function serviceDb(){
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if(!url||!key)throw new HttpError(503,"Trust services need the server Supabase key and phase 18 migration. Existing marketplace remains available.");
+  // Keep deployment configuration details server-side. This helper is only ever
+  // imported by Route Handlers, so the service-role credential cannot reach a
+  // browser bundle.
+  if(!url||!key)throw new HttpError(503,"Secure calling is temporarily unavailable. Please try again.");
   return supabaseClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 }
 export async function actor(request:Request,admin=false,allowRestricted=false){
