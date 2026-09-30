@@ -3,16 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { trustFetch, trustPost } from "@/lib/trust/client";
 import SecureDeliveryPanel from "@/components/SecureDeliveryPanel";
-import {
-  Truck,
-  RotateCcw,
-  ExternalLink,
-  ShieldCheck,
-  AlertTriangle,
-  PackageCheck,
-  Ban,
-  Clock,
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 type Review = {
   score: number;
@@ -93,8 +84,8 @@ type Shipment = {
   carrier_cost_paise: number;
   service_margin_paise: number;
   customer_delivery_paise: number;
-  pickup: any;
-  dropoff: any;
+  pickup: { address?: string } | null;
+  dropoff: { address?: string } | null;
   last_tracking_sync_at: string | null;
   created_at: string;
 };
@@ -156,16 +147,41 @@ export default function TrustCenter() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function action(id: string, actionName: string, attribution?: string) {
     setBusy(true);
     try {
-      await trustPost("/api/trust/admin", { id, action: actionName, reason, attribution });
+      const defaultReason =
+        actionName === "approve"
+          ? "Admin manually approved after listing and image review."
+          : actionName === "reject"
+          ? "Admin rejected the listing after moderation review."
+          : actionName === "changes"
+          ? "Admin requested listing changes after moderation review."
+          : "Admin action completed after reviewing the available evidence.";
+      await trustPost("/api/trust/admin", {
+        id,
+        action: actionName,
+        reason: reason.trim() || defaultReason,
+        attribution,
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runSafetyAnalysis(productId: string) {
+    setBusy(true);
+    try {
+      await trustPost("/api/trust/listings", { productId });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Safety analysis could not be started");
     } finally {
       setBusy(false);
     }
@@ -417,12 +433,21 @@ export default function TrustCenter() {
                           <button
                             key={a}
                             className={btn}
-                            disabled={busy || reason.length < 10 || ["sold", "reserved"].includes(p.status)}
+                            disabled={busy || ["sold", "reserved"].includes(p.status)}
                             onClick={() => void action(p.id, a)}
                           >
                             {a === "changes" ? (p.status === "approved" ? "Unpublish & Send to Review" : "Request Changes") : a === "approve" ? "Approve" : "Reject"}
                           </button>
                         ))}
+                        {!review && (
+                          <button
+                            className="min-h-12 rounded-xl border border-sky-400/40 bg-sky-500/10 px-4 text-sm font-bold text-sky-200 transition hover:bg-sky-500/20 disabled:opacity-40"
+                            disabled={busy || !["pending", "pending_review", "changes_requested"].includes(p.status)}
+                            onClick={() => void runSafetyAnalysis(p.id)}
+                          >
+                            Run safety analysis
+                          </button>
+                        )}
                       </div>
                     </article>
                   );

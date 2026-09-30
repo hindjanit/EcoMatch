@@ -8,9 +8,8 @@ type Part = { text: string } | { inlineData: { mimeType: string; data: string } 
 
 export async function geminiJSON(prompt: string, media: { bytes: Buffer; mimeType: string }[] = []): Promise<Record<string, unknown>> {
   const key = process.env.GEMINI_API_KEY,
-    model = process.env.GEMINI_TRUST_MODEL;
+    model = process.env.GEMINI_TRUST_MODEL || "gemini-3.5-flash-lite";
   if (!key) throw new Error("AI trust model is not configured");
-  if (!model) throw new Error("AI trust model is not configured");
   if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Invalid model configuration");
 
   const parts: Part[] = [
@@ -169,7 +168,17 @@ export async function assessListing(db: ReturnType<typeof serviceDb>, productId:
       ai_weight_bulky: aiWeight === null ? null : shipment?.bulky === true,
       ai_weight_assessed_at: new Date().toISOString(),
     }).eq("id", p.id);
-    check(weightError);
+    if (weightError) {
+      // Weight is useful for delivery, but its persistence must not prevent the
+      // independent safety assessment from being published. The review remains
+      // conservative and delivery will require manual handling.
+      console.error("AI shipment-weight persistence failed", { productId: p.id, code: weightError.code });
+      checks.weightPersistence = {
+        status: "unknown",
+        reason: "AI shipment weight could not be saved; delivery requires manual confirmation",
+        penalty: 20,
+      };
+    }
   } catch (e) {
     // FAIL-CLOSED: Any AI failure marks uncertain & prevents auto-approval
     checks.aiAvailability = {
@@ -184,7 +193,14 @@ export async function assessListing(db: ReturnType<typeof serviceDb>, productId:
       ai_weight_bulky: null,
       ai_weight_assessed_at: new Date().toISOString(),
     }).eq("id", p.id);
-    check(weightError);
+    if (weightError) {
+      console.error("AI shipment-weight reset failed", { productId: p.id, code: weightError.code });
+      checks.weightPersistence = {
+        status: "unknown",
+        reason: "AI shipment weight could not be cleared; delivery requires manual confirmation",
+        penalty: 20,
+      };
+    }
   }
 
   // Deterministic checks
