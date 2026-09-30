@@ -27,5 +27,5 @@ export async function photoLoad(product: LoadProduct, imageUrl: string) {
   let data; try { data = JSON.parse(raw); } catch { throw new Error('Photo weight could not be estimated reliably.'); }
   if (data.uncertain !== false || typeof data.bulky !== 'boolean' || typeof data.reason !== 'string' || !Number.isFinite(data.lowKg) || !Number.isFinite(data.highKg) || data.lowKg <= 0 || data.highKg < data.lowKg || data.highKg > 100000) throw new Error('Photo is insufficient for a reliable weight range. Enter the seller-confirmed packaged weight.');
   const forceBulky = /chair|table|desk|sofa|cabinet|furniture|fridge|pallet/i.test(`${product.title} ${product.category}`);
-  return makeLoad(data.lowKg, data.highKg, data.bulky || forceBulky, 'photo', data.reason.slice(0, 400));
+  return makeLoad(data.lowKg, data.highKg, data.bulky || forceBulky, 'vision_estimated', data.reason.slice(0, 400));
 }

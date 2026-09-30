@@ -103,6 +103,23 @@ type Profile = {
   verification_status: string | null;
 };
 type Disclosure = { usage_band: string; usage_months: number | null; known_issue_status: string; defects: { label?: string; severity?: string }[]; refurbished: string; repaired: string; repair_details: string | null; other_details: string | null; overall_condition: string | null; reuse_potential: string | null; disclosure_version: number };
+type HandoverReadiness = {
+  ready: boolean;
+  completed: boolean;
+  requirements: {
+    selfPickup: boolean;
+    meetingReady: boolean;
+    identity: boolean;
+    verification: boolean;
+    verificationMethod: "qr" | "otp" | null;
+    proximity: boolean;
+    buyerConfirmation: boolean;
+    sellerConfirmation: boolean;
+    disclosure: boolean;
+    noDispute: boolean;
+    sellerOwnsProduct: boolean;
+  };
+};
 
 type LocationSuggestion = {
   id: string;
@@ -182,8 +199,8 @@ export default function DealRoomPage() {
   // Proximity & Safety Radar
   const [proximityVerified, setProximityVerified] = useState(false);
   const [proximityMeters, setProximityMeters] = useState<number | null>(null);
-  const [demoGpsMode, setDemoGpsMode] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [handoverReadiness, setHandoverReadiness] = useState<HandoverReadiness | null>(null);
 
   // QR Code & OTP Handover State
   const [generatedCode, setGeneratedCode] = useState("");
@@ -481,6 +498,11 @@ export default function DealRoomPage() {
     const current = dealData as Deal;
     setDeal(current);
 
+    const { data: readinessData } = await supabase.rpc("trust_self_pickup_readiness", {
+      p_deal: current.id,
+    });
+    setHandoverReadiness((readinessData as HandoverReadiness | null) || null);
+
     const [productResult, imageResult, profilesResult, ledgerResult, disclosureResult] = await Promise.all([
       supabase
         .from("products")
@@ -752,16 +774,6 @@ export default function DealRoomPage() {
     setError("");
     setMessage("");
 
-    if (demoGpsMode) {
-      // Judge demo mode: Instant bypass
-      setProximityVerified(true);
-      setProximityMeters(38);
-      setMessage("✓ [DEMO MODE] Proximity Verified! Buyer & Seller are within 38 meters.");
-      await supabase.from("deal_requests").update({ proximity_verified: true, proximity_distance_meters: 38 }).eq("id", deal.id);
-      setCheckingIn(false);
-      return;
-    }
-
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setError("GPS not supported. Enable [DEMO MODE] above to test proximity verification.");
       setCheckingIn(false);
@@ -783,9 +795,7 @@ export default function DealRoomPage() {
           });
 
           if (rpcErr) {
-            setProximityVerified(true);
-            setProximityMeters(45);
-            setMessage("✓ Check-in recorded at handover coordinates.");
+            setError(rpcErr.message);
           } else {
             const dist = Number(data?.distance_to_meeting_meters || 42);
             setProximityMeters(dist);
@@ -796,9 +806,8 @@ export default function DealRoomPage() {
               setMessage(`Check-in coordinates noted (${dist}m from meeting point).`);
             }
           }
-        } catch {
-          setProximityVerified(true);
-          setMessage("✓ Location check-in recorded.");
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Location check-in could not be verified.");
         }
         setCheckingIn(false);
         await loadDealRoom(true);
@@ -911,6 +920,18 @@ export default function DealRoomPage() {
 
   const isSeller = deal.seller_id === userId;
   const isBuyer = deal.buyer_id === userId;
+  const handoverRequirements = handoverReadiness?.requirements;
+  const myHandoverConfirmed = isBuyer ? Boolean(deal.buyer_handover_confirmed_at) : Boolean(deal.seller_handover_confirmed_at);
+  const handoverPrerequisitesMet = Boolean(
+    handoverRequirements?.selfPickup &&
+      handoverRequirements.meetingReady &&
+      handoverRequirements.identity &&
+      handoverRequirements.verification &&
+      handoverRequirements.proximity &&
+      handoverRequirements.disclosure &&
+      handoverRequirements.noDispute &&
+      handoverRequirements.sellerOwnsProduct
+  );
   const currentStep = statusOrder[deal.status] ?? -1;
   const myMeetingConfirmed = isBuyer ? deal.buyer_meeting_confirmed : deal.seller_meeting_confirmed;
   const effectivePrice = Number(deal.agreed_price || product?.price || 0);
@@ -1351,29 +1372,17 @@ export default function DealRoomPage() {
                     <h4 className="text-sm font-bold text-white">Physical Proximity Radar</h4>
                   </div>
 
-                  {/* Demo Proximity Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setDemoGpsMode(!demoGpsMode)}
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border transition ${
-                      demoGpsMode
-                        ? "bg-amber-500/20 border-amber-400/40 text-amber-300"
-                        : "bg-white/5 border-white/10 text-white/50"
-                    }`}
-                  >
-                    {demoGpsMode ? "✓ Demo GPS Mode ON" : "Demo GPS Mode"}
-                  </button>
                 </div>
 
                 <p className="text-xs text-white/60 leading-relaxed">
-                  To ensure maximum exchange security, check in at the agreed coordinates. EcoMatch verifies Haversine distance server-side.
+                  To ensure maximum exchange security, check in at the agreed coordinates. EcoMatch verifies Haversine distance server-side; this page never marks proximity verified locally.
                 </p>
 
                 <div className="flex items-center justify-between rounded-xl bg-black/40 p-3 text-xs">
                   <div>
                     <span className="text-white/60">Status: </span>
                     <strong className={proximityVerified ? "text-emerald-400" : "text-amber-300"}>
-                      {proximityVerified
+                      {handoverRequirements?.proximity
                         ? `✓ Verified (${proximityMeters || 38}m away)`
                         : "Awaiting physical check-in"}
                     </strong>
@@ -1413,22 +1422,22 @@ export default function DealRoomPage() {
 
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 text-xs">
                   <div className="flex items-center gap-2 rounded-xl bg-black/40 p-2.5">
-                    <CheckCircle2 className={`h-4 w-4 ${qrVerified ? "text-emerald-400" : "text-white/20"}`} />
-                    <span className={qrVerified ? "font-bold text-white" : "text-white/50"}>
-                      QR Verified
+                    <CheckCircle2 className={`h-4 w-4 ${handoverRequirements?.verification ? "text-emerald-400" : "text-white/20"}`} />
+                    <span className={handoverRequirements?.verification ? "font-bold text-white" : "text-white/50"}>
+                      QR or OTP Verified
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 rounded-xl bg-black/40 p-2.5">
-                    <CheckCircle2 className={`h-4 w-4 ${deal.exchange_code_verified_at ? "text-emerald-400" : "text-white/20"}`} />
-                    <span className={deal.exchange_code_verified_at ? "font-bold text-white" : "text-white/50"}>
-                      OTP Verified
+                    <CheckCircle2 className={`h-4 w-4 ${handoverRequirements?.identity ? "text-emerald-400" : "text-white/20"}`} />
+                    <span className={handoverRequirements?.identity ? "font-bold text-white" : "text-white/50"}>
+                      Identity Verified
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 rounded-xl bg-black/40 p-2.5">
-                    <CheckCircle2 className={`h-4 w-4 ${proximityVerified ? "text-emerald-400" : "text-white/20"}`} />
-                    <span className={proximityVerified ? "font-bold text-white" : "text-white/50"}>
+                    <CheckCircle2 className={`h-4 w-4 ${handoverRequirements?.proximity ? "text-emerald-400" : "text-white/20"}`} />
+                    <span className={handoverRequirements?.proximity ? "font-bold text-white" : "text-white/50"}>
                       Proximity Met
                     </span>
                   </div>
@@ -1453,11 +1462,13 @@ export default function DealRoomPage() {
                 {/* Confirm Button */}
                 <button
                   onClick={confirmHandover}
-                  disabled={actionLoading || (userId === deal.buyer_id && Boolean(disclosure) && deal.buyer_disclosure_confirmation !== "matches")}
+                  disabled={actionLoading || !handoverPrerequisitesMet || myHandoverConfirmed}
                   className="mt-5 w-full rounded-2xl bg-emerald-400 py-3.5 text-xs font-black text-[#03140e] hover:bg-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)] transition active:scale-95 disabled:opacity-50"
                 >
-                  {actionLoading ? "Verifying Transaction..." : "✓ Confirm Physical Handover (Execute Transfer)"}
+                  {actionLoading ? "Verifying Transaction..." : myHandoverConfirmed ? "✓ Your handover confirmation recorded" : handoverReadiness?.ready ? "✓ Confirm Physical Handover (Execute Transfer)" : "Confirm your physical handover"}
                 </button>
+                {!handoverPrerequisitesMet && <p className="mt-3 text-xs text-amber-200">Waiting for the server-verified requirements shown above. The transfer cannot be enabled from browser-only state.</p>}
+                {handoverPrerequisitesMet && !handoverReadiness?.ready && !myHandoverConfirmed && <p className="mt-3 text-xs text-emerald-200">Confirm your side; the counterparty must also confirm before the atomic ownership transfer runs.</p>}
               </div>
             )}
 

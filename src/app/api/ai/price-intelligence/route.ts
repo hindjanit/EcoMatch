@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculateFairPrice, type ConditionFactor, type HardDeduction } from "@/lib/fair-price";
 
 export const runtime = "nodejs";
 
@@ -150,6 +151,7 @@ export async function POST(request: Request) {
       .trim();
 
     let onlineSnippets: string[] = [];
+    let onlinePrices: number[] = [];
 
     // Step 1: Optional live Google Shopping lookup via SerpApi if configured
     if (serpApiKey) {
@@ -174,11 +176,50 @@ export async function POST(request: Request) {
           onlineSnippets = shoppingResults.slice(0, 6).map(
             (item) => `${item.source || "Online Store"}: "${item.title}" - ₹${item.extracted_price || item.price}`
           );
+          onlinePrices = shoppingResults
+            .filter((item) => matchScore(identity, item.title || "") >= 0.55)
+            .map((item) => Number(item.extracted_price || parsePriceText(item.price)))
+            .filter((price) => Number.isFinite(price) && price > 0);
         }
       } catch (err) {
         console.warn("SerpApi price lookup skipped/failed:", err);
       }
     }
+
+    // The valuation itself is deterministic. External research can establish a
+    // reference price, but it never supplies the depreciation, condition or
+    // demand result. Without a current reference, an explicit seller reference
+    // is labelled as such rather than represented as current market data.
+    const referencePrice = onlinePrices.length ? median(onlinePrices) : purchasePrice > 0 ? purchasePrice : null;
+    const referenceSource = onlinePrices.length ? "current_market" : purchasePrice > 0 ? "seller_reference" : undefined;
+    const conditionFactors: ConditionFactor[] = [{ factor: "declared_condition", value: getConditionFactor(condition), source: "seller condition" }];
+    const defects = Array.isArray((disclosure as { defects?: { key?: string; severity?: string }[] } | null)?.defects)
+      ? (disclosure as { defects: { key?: string; severity?: string }[] }).defects
+      : [];
+    for (const defect of defects) {
+      const severityFactor = defect.severity === "critical" ? 0.7 : defect.severity === "major" ? 0.82 : defect.severity === "moderate" ? 0.9 : defect.severity === "minor" ? 0.96 : 1;
+      if (severityFactor < 1) conditionFactors.push({ factor: `declared_${defect.severity}_defect`, value: severityFactor, source: "seller disclosure", defectKey: defect.key });
+    }
+    const hardDeductions = Array.isArray(body.hardDeductions)
+      ? body.hardDeductions.filter((entry: unknown): entry is HardDeduction => Boolean(entry && typeof entry === "object" && typeof (entry as HardDeduction).id === "string" && typeof (entry as HardDeduction).amount === "number" && typeof (entry as HardDeduction).reason === "string"))
+      : [];
+    const valuation = calculateFairPrice({ referencePrice, category, productType: productType || title, ageMonths: monthsUsed, conditionFactors, hardDeductions, demandMultiplier: 1, referenceSource });
+    if (!valuation.available) {
+      return NextResponse.json({ error: valuation.reason }, { status: 422 });
+    }
+    const deterministicFairMin = valuation.low;
+    const deterministicFairMax = valuation.high;
+    return NextResponse.json({ analysis: {
+      referencePrice: valuation.referencePrice, marketLow: onlinePrices.length ? Math.min(...onlinePrices) : null, marketHigh: onlinePrices.length ? Math.max(...onlinePrices) : null,
+      marketPriceFound: onlinePrices.length > 0, usedOnlineResearch: onlinePrices.length > 0,
+      pricingMethod: `Universal Valuation Engine · ${valuation.policy.depreciationModel === "reducing_balance" ? "reducing-balance" : "linear residual-floor"} depreciation`,
+      productMatched: title, matchQuality: onlinePrices.length ? "Matched current retail references" : "Seller-provided reference", fairMin: deterministicFairMin, fairMax: deterministicFairMax, sellerPrice: Math.round(sellerPrice),
+      verdict: calculateVerdict(sellerPrice, deterministicFairMin, deterministicFairMax, valuation.referencePrice, condition), confidence: valuation.confidence === "High" ? 90 : valuation.confidence === "Medium" ? 70 : 45,
+      valuationConfidence: valuation.confidence, ageFactor: Number((valuation.basePrice / valuation.referencePrice).toFixed(3)), conditionFactor: valuation.conditionFactor,
+      hardDeductions: valuation.hardDeductionTotal, demandMultiplier: valuation.demandMultiplier, demandExplanation: valuation.demandExplanation,
+      reason: `Reference ₹${valuation.referencePrice}; age-adjusted base ₹${valuation.basePrice}; condition factor ×${valuation.conditionFactor}; hard deductions -₹${valuation.hardDeductionTotal}; demand ×${valuation.demandMultiplier}. Recommended range ₹${deterministicFairMin}–₹${deterministicFairMax}.`,
+      researchSummary: valuation.demandExplanation, sources: [], priceSamples: onlinePrices, purchasePrice: purchasePrice || null,
+    } });
 
     // Step 2: Use Gemini AI to determine exact Current Indian Online New Retail Price & Fair Resale Range
     if (apiKey) {
@@ -227,13 +268,13 @@ CRITICAL PRICING RULES:
 `;
 
         const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey!)}`,
           {
             method: "POST",
             signal: AbortSignal.timeout(8000),
             headers: {
               "Content-Type": "application/json",
-              "x-goog-api-key": apiKey,
+              "x-goog-api-key": apiKey!,
             },
             body: JSON.stringify({
               contents: [{ role: "user", parts: [{ text: prompt }] }],

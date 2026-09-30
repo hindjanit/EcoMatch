@@ -38,8 +38,16 @@ async function context(request: Request, dealId: unknown) {
   const loadProduct: LoadProduct = { title: product?.title, description: String(product?.description || '').slice(0, 2000), category: product?.category, material: product?.material, specifications: String(product?.specifications || '').slice(0, 1000), quantity: product?.quantity, quantity_unit: product?.quantity_unit, ai_estimated_weight_kg: product?.ai_estimated_weight_kg, seller_confirmed_weight_kg: product?.seller_confirmed_weight_kg, ai_weight_bulky: product?.ai_weight_bulky };
   const canonical = getCanonicalWeight(loadProduct);
   const weightEstimate = canonical
-    ? makeLoad(canonical.weightKg, canonical.weightKg, canonical.bulky, 'ai', 'Verified canonical shipment weight from AI listing analysis.')
-    : null;
+    ? makeLoad(
+        canonical.weightKg,
+        canonical.weightKg,
+        canonical.bulky,
+        canonical.source,
+        canonical.source === 'seller_measured'
+          ? 'Seller-provided packaged weight.'
+          : 'Vision AI estimated shipment weight. This is not a physical measurement.'
+      )
+    : estimateProductLoad(loadProduct);
   return { pickup, productAmount: Number(price), sample: false, buyer: user.id === deal.buyer_id, approximate, product: loadProduct, imageUrl: null, weightEstimate };
 }
 export async function GET(request: Request) {
@@ -62,8 +70,9 @@ export async function POST(request: Request) {
       throw new RequestError('Please select a valid delivery destination pin.');
     }
 
-    // SERVER-AUTHORITATIVE WEIGHT & VEHICLE DETERMINATION
-    // Determine canonical weight strictly from the product listing / AI load model
+    // SERVER-AUTHORITATIVE WEIGHT & VEHICLE DETERMINATION. The bounded
+    // category/type estimate is explicitly labelled and is never persisted as a
+    // seller measurement or used as a carrier booking weight.
     const canonicalWeight = ctx.weightEstimate?.suggestedKg;
     if (!canonicalWeight || !Number.isFinite(canonicalWeight) || canonicalWeight <= 0) {
       throw new RequestError('Delivery estimate unavailable — product weight could not be determined. Please contact support or the seller.', 422);
@@ -84,6 +93,8 @@ export async function POST(request: Request) {
       ...route,
       vehicle: vehicleKey,
       weightKg: canonicalWeight,
+      weightLowKg: ctx.weightEstimate?.lowKg,
+      weightHighKg: ctx.weightEstimate?.highKg,
       bulky,
       weightSource: ctx.weightEstimate?.source,
       pickup: ctx.pickup,

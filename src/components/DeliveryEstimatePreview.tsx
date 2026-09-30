@@ -153,7 +153,7 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
               Verified Shipment Load
             </h3>
             <span className="rounded-full bg-lime-400/20 border border-lime-400/40 px-2.5 py-0.5 text-xs font-semibold text-lime-300">
-              AI Estimated
+              {loadEstimate?.source === 'seller_measured' ? 'Seller-provided' : loadEstimate?.source === 'vision_estimated' ? 'AI estimated' : 'Category estimate'}
             </span>
           </div>
 
@@ -162,10 +162,10 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
           {loadEstimate ? (
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div className="rounded-lg bg-black/40 p-3 border border-white/10">
-                <span className="text-xs text-slate-400 block">Package Weight</span>
-                <span className="text-lg font-bold text-lime-300">{weightKg} kg</span>
+                <span className="text-xs text-slate-400 block">Estimated package weight</span>
+                <span className="text-lg font-bold text-lime-300">{loadEstimate.lowKg}–{loadEstimate.highKg} kg</span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  {loadEstimate.source === 'ai' ? 'Canonical AI analysis' : loadEstimate.source === 'listing' ? 'Listing mass' : 'Category planning estimate'}
+                  {loadEstimate.source === 'seller_measured' ? 'Seller-provided packaged weight' : loadEstimate.source === 'vision_estimated' ? 'Vision AI estimate — not physically verified' : 'Bounded category/type estimate — seller should confirm before booking'}
                 </span>
               </div>
               <div className="rounded-lg bg-black/40 p-3 border border-white/10">
@@ -198,7 +198,7 @@ export default function DeliveryEstimatePreview({ dealId }: { dealId?: string })
               {autoVehicleKey && <span className="text-xs text-slate-400">Up to {autoVehicle.capacity} kg</span>}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Automatically determined as the smallest viable option capable of safely carrying this shipment.
+              {loadEstimate?.reason || 'Automatically determined as the smallest viable option capable of safely carrying this shipment.'}
             </p>
           </div>
         </div>
