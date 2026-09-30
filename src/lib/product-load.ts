@@ -1,6 +1,6 @@
 import { vehicles, type Vehicle } from './delivery-estimate';
 export type ProductLoad = { lowKg: number; highKg: number; suggestedKg: number; bulky: boolean; source: 'ai' | 'listing' | 'category' | 'photo'; reason: string; vehicle: Vehicle | null };
-export type LoadProduct = { title?: string; description?: string; material?: string; category?: string; specifications?: string; quantity?: number; quantity_unit?: string; ai_estimated_weight_kg?: number | string | null; ai_weight_bulky?: boolean | null };
+export type LoadProduct = { title?: string; description?: string; material?: string; category?: string; specifications?: string; quantity?: number; quantity_unit?: string; ai_estimated_weight_kg?: number | string | null; seller_confirmed_weight_kg?: number | string | null; ai_weight_bulky?: boolean | null };
 export function recommendVehicle(weight: number, bulky: boolean): Vehicle | null {
   return selectSmallestSuitableDeliveryOption(weight, bulky);
 }
@@ -19,7 +19,8 @@ export function extractExplicitWeight(specifications?: string): number | null {
   return null;
 }
 export function getCanonicalWeight(product: LoadProduct): { weightKg: number; bulky: boolean; source: 'ai' } | null {
-  const aiWeight = Number(product.ai_estimated_weight_kg);
+  const confirmedWeight = Number(product.seller_confirmed_weight_kg);
+  const aiWeight = Number.isFinite(confirmedWeight) && confirmedWeight > 0 ? confirmedWeight : Number(product.ai_estimated_weight_kg);
   if (!Number.isFinite(aiWeight) || aiWeight <= 0) return null;
   const text = `${product.title || ''} ${product.material || ''} ${product.category || ''}`.toLowerCase();
   const inferredBulky = /chair|table|desk|sofa|cabinet|furniture|fridge|refrigerator|washing machine|pallet|machinery/.test(text);

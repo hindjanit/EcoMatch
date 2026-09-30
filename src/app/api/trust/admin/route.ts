@@ -11,7 +11,7 @@ export async function GET(request: Request) {
       db
         .from("products")
         .select(
-          "id,title,seller_id,status,safety_score,approval_method,auto_approved,manual_review_required,moderation_decision,moderation_risk_level,moderation_confidence,created_at,listing_ai_reviews(*)"
+          "id,title,seller_id,status,safety_score,approval_method,auto_approved,manual_review_required,moderation_decision,moderation_risk_level,moderation_confidence,created_at,listing_ai_reviews(*),product_images(image_url,verification_status)"
         )
         .order("created_at", { ascending: false })
         .limit(100),

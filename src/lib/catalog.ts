@@ -27,8 +27,10 @@ export const PRODUCT_CONDITIONS = [
   "New",
   "Like New",
   "Good",
-  "Used",
-  "For Parts / Repair",
+  "Fair",
+  "Poor",
+  "Damaged",
+  "Unknown",
 ] as const;
 
 export const CATEGORY_CARDS = [

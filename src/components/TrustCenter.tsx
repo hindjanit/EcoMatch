@@ -37,6 +37,7 @@ type Listing = {
   moderation_confidence?: number;
   created_at: string;
   listing_ai_reviews: Review[];
+  product_images?: { image_url: string; verification_status: string }[];
 };
 
 type Risk = {
@@ -320,6 +321,11 @@ export default function TrustCenter() {
                   )[0];
                   return (
                     <article key={p.id} className="rounded-2xl border border-white/20 bg-white/5 p-5">
+                      {p.product_images?.[0]?.image_url ? (
+                        <img className="mb-4 h-40 w-full rounded-xl border border-white/10 object-cover" src={p.product_images[0].image_url} alt={`Listing image for ${p.title}`} />
+                      ) : (
+                        <div className="mb-4 flex h-40 items-center justify-center rounded-xl border border-dashed border-white/20 text-xs text-white/50">No listing image available</div>
+                      )}
                       <div className="flex items-center justify-between">
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-bold ${

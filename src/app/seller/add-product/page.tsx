@@ -20,6 +20,10 @@ type VisionAnalysis = {
   brand: string;
   condition: string;
   conditionConfidence: number;
+  conditionReason: string;
+  estimatedWeightKg: number | null;
+  weightConfidence: number;
+  weightBasis: string;
   classificationConfidence: number;
   visibleIssues: string[];
   suggestedTitle: string;
@@ -389,7 +393,7 @@ export default function AddProductPage() {
         setTitle(analysis.suggestedTitle || analysis.productName);
       }
       setCategory(analysis.category);
-      setCondition(analysis.condition);
+      if (analysis.condition !== "Unknown") setCondition(analysis.condition);
 
       if (analysis.productType) {
         setMaterial(analysis.productType);
@@ -451,7 +455,7 @@ export default function AddProductPage() {
     }
 
     setCategory(visionAnalysis.category);
-    setCondition(visionAnalysis.condition);
+    if (visionAnalysis.condition !== "Unknown") setCondition(visionAnalysis.condition);
 
     setClassification({
       category: visionAnalysis.category,
@@ -892,6 +896,12 @@ export default function AddProductPage() {
           ai_price_reason: priceAnalysis?.reason ?? null,
           ai_price_sources: priceAnalysis?.sources ?? null,
           ai_price_checked_at: priceAnalysis ? new Date().toISOString() : null,
+
+          ai_estimated_weight_kg: visionAnalysis?.estimatedWeightKg ?? null,
+          seller_confirmed_weight_kg: estimatedWeight.trim() ? Number(estimatedWeight) : null,
+          seller_weight_confirmed_at: estimatedWeight.trim() ? new Date().toISOString() : null,
+          ai_weight_bulky: null,
+          ai_weight_assessed_at: visionAnalysis?.estimatedWeightKg ? new Date().toISOString() : null,
 
           ai_review_bucket: risk.bucket,
           ai_risk_score: risk.score,

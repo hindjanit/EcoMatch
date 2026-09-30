@@ -32,10 +32,10 @@ async function context(request: Request, dealId: unknown) {
   }
   const pickup = { latitude: seller?.latitude, longitude: seller?.longitude, label: seller?.location_name || 'Seller saved pickup location' };
   if (!validPoint(pickup)) throw new RequestError('The seller needs to save a pickup location in their profile before delivery can be estimated.', 409);
-  const { data: product } = await db.from('products').select('title,description,category,material,specifications,quantity,quantity_unit,price,ai_estimated_weight_kg,ai_weight_bulky').eq('id', deal.product_id).maybeSingle();
+  const { data: product } = await db.from('products').select('title,description,category,material,specifications,quantity,quantity_unit,price,ai_estimated_weight_kg,seller_confirmed_weight_kg,ai_weight_bulky').eq('id', deal.product_id).maybeSingle();
   const price = deal.agreed_price ?? product?.price;
   if (price === null || price === undefined || !Number.isFinite(Number(price))) throw new RequestError('Product price is unavailable.', 409);
-  const loadProduct: LoadProduct = { title: product?.title, description: String(product?.description || '').slice(0, 2000), category: product?.category, material: product?.material, specifications: String(product?.specifications || '').slice(0, 1000), quantity: product?.quantity, quantity_unit: product?.quantity_unit, ai_estimated_weight_kg: product?.ai_estimated_weight_kg, ai_weight_bulky: product?.ai_weight_bulky };
+  const loadProduct: LoadProduct = { title: product?.title, description: String(product?.description || '').slice(0, 2000), category: product?.category, material: product?.material, specifications: String(product?.specifications || '').slice(0, 1000), quantity: product?.quantity, quantity_unit: product?.quantity_unit, ai_estimated_weight_kg: product?.ai_estimated_weight_kg, seller_confirmed_weight_kg: product?.seller_confirmed_weight_kg, ai_weight_bulky: product?.ai_weight_bulky };
   const canonical = getCanonicalWeight(loadProduct);
   const weightEstimate = canonical
     ? makeLoad(canonical.weightKg, canonical.weightKg, canonical.bulky, 'ai', 'Verified canonical shipment weight from AI listing analysis.')

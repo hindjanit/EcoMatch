@@ -29,8 +29,10 @@ const allowedConditions = [
   "New",
   "Like New",
   "Good",
-  "Used",
-  "For Parts / Repair",
+  "Fair",
+  "Poor",
+  "Damaged",
+  "Unknown",
 ];
 
 function cleanJson(text: string) {
@@ -141,10 +143,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey) {
-      const fallback = generateFallbackAnalysis(image.name, sellerText);
-      return NextResponse.json({ analysis: fallback });
-    }
+    if (!apiKey) return NextResponse.json({ error: "Vision AI is not configured." }, { status: 503 });
 
     const imageBytes = Buffer.from(await image.arrayBuffer());
     const imageBase64 = imageBytes.toString("base64");
@@ -164,7 +163,7 @@ Analyze the uploaded product photo carefully. Inspect the object's physical form
 Guidelines for Identification:
 1. If the photo shows a computer peripheral (e.g. mouse, keyboard, headphones, monitor), identify it accurately. If an HP, Dell, Logitech, Lenovo, or Apple logo/text is visible, include the brand name and exact product type (e.g. "HP Wireless Mouse", "Logitech Wireless Keyboard").
 2. Category must be chosen from Allowed categories (e.g. "Computers & Accessories" for mice/keyboards/laptops, "Mobile Phones" for phones, "Electronics" for gadgets, "Metals" for metal lots).
-3. Condition must be visually estimated: "New", "Like New", "Good", "Used", or "For Parts / Repair".
+3. Independently estimate only the VISIBLE condition: New, Like New, Good, Fair, Poor, Damaged, or Unknown. Inspect scratches, dents, cracks, stains, discoloration, rust/corrosion, missing or broken parts, wear, and packaging/seals. Never infer internal functionality from a photo. Use Unknown when visible evidence is insufficient.
 4. Produce a crisp marketplace title (e.g. "HP Wireless Optical Mouse"), product type ("Wireless Mouse"), detailed 2-sentence description, and 3-5 bullet specifications (e.g. ["2.4GHz Wireless Dongle / Bluetooth", "Optical Sensor Tracking", "Ergonomic Grip", "Buttons & Scroll Wheel Intact"]).
 
 Return ONLY valid JSON and no markdown backticks.
@@ -181,8 +180,12 @@ Required JSON shape:
   "category": "exactly one allowed category (e.g. Computers & Accessories)",
   "productType": "specific product type (e.g. Wireless Optical Mouse)",
   "brand": "HP or Logitech or Dell or brand if visible, otherwise Unknown",
-  "condition": "Good or Like New or Used or New or For Parts / Repair",
-  "conditionConfidence": 90,
+  "condition": "New | Like New | Good | Fair | Poor | Damaged | Unknown",
+  "conditionConfidence": 0.90,
+  "conditionReason": "Visible evidence supporting the condition, or why it is Unknown",
+  "estimatedWeightKg": 0.35,
+  "weightConfidence": 0.72,
+  "weightBasis": "Visible form factor and typical construction; estimate only",
   "classificationConfidence": 95,
   "visibleIssues": ["only clearly visible issues like scuffs/scratches; empty array if clean"],
   "suggestedTitle": "HP Wireless Optical Mouse (Black)",
@@ -197,7 +200,9 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const model = process.env.GEMINI_VISION_MODEL || process.env.GEMINI_TRUST_MODEL || "gemini-2.5-flash";
+      if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Invalid Vision AI model configuration.");
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const geminiResponse = await fetch(endpoint, {
         method: "POST",
@@ -232,8 +237,7 @@ ${sellerText || "No seller text provided."}
       if (!geminiResponse.ok) {
         const errorData = await geminiResponse.json().catch(() => null);
         console.error("Gemini Vision API error:", geminiResponse.status, errorData);
-        const fallback = generateFallbackAnalysis(image.name, sellerText);
-        return NextResponse.json({ analysis: fallback });
+        return NextResponse.json({ error: `Vision AI unavailable (${geminiResponse.status}).` }, { status: 502 });
       }
 
       const raw = await geminiResponse.json();
@@ -243,24 +247,21 @@ ${sellerText || "No seller text provided."}
         .trim();
 
       if (!responseText) {
-        const fallback = generateFallbackAnalysis(image.name, sellerText);
-        return NextResponse.json({ analysis: fallback });
+        return NextResponse.json({ error: "Vision AI returned no assessment." }, { status: 502 });
       }
 
       let analysis;
       try {
         analysis = JSON.parse(cleanJson(responseText));
       } catch {
-        analysis = generateFallbackAnalysis(image.name, sellerText);
+        return NextResponse.json({ error: "Vision AI returned malformed analysis." }, { status: 502 });
       }
 
       if (!allowedCategories.includes(analysis.category)) {
         analysis.category = "Other";
       }
 
-      if (!allowedConditions.includes(analysis.condition)) {
-        analysis.condition = "Used";
-      }
+      if (!allowedConditions.includes(analysis.condition)) analysis.condition = "Unknown";
 
       analysis.classificationConfidence = Math.max(
         0,
@@ -271,6 +272,11 @@ ${sellerText || "No seller text provided."}
         0,
         Math.min(100, Math.round(Number(analysis.conditionConfidence) || 0))
       );
+      analysis.conditionReason = typeof analysis.conditionReason === "string" ? analysis.conditionReason.slice(0, 500) : "Visible condition could not be determined.";
+      const estimatedWeightKg = Number(analysis.estimatedWeightKg);
+      analysis.estimatedWeightKg = Number.isFinite(estimatedWeightKg) && estimatedWeightKg > 0 && estimatedWeightKg <= 100000 ? Math.round(estimatedWeightKg * 1000) / 1000 : null;
+      analysis.weightConfidence = Math.max(0, Math.min(1, Number(analysis.weightConfidence) || 0));
+      analysis.weightBasis = typeof analysis.weightBasis === "string" ? analysis.weightBasis.slice(0, 500) : "No reliable visual weight estimate.";
 
       analysis.visibleIssues = Array.isArray(analysis.visibleIssues)
         ? analysis.visibleIssues.slice(0, 6).map(String)
@@ -283,9 +289,8 @@ ${sellerText || "No seller text provided."}
         : [];
 
       return NextResponse.json({ analysis });
-    } catch {
-      const fallback = generateFallbackAnalysis(image.name, sellerText);
-      return NextResponse.json({ analysis: fallback });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Vision AI analysis failed." }, { status: 502 });
     }
   } catch (error) {
     console.error("EcoMatch Vision API error:", error);
