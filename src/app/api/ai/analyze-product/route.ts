@@ -158,15 +158,12 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      // Keep the configured model as the primary choice, but use a separately
-      // validated vision-capable model when Gemini reports its primary is busy.
-      const primaryModel = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
-      const fallbackModel = process.env.GEMINI_VISION_FALLBACK_MODEL || "gemini-3.6-flash";
-      if (![primaryModel, fallbackModel].every((candidate) => /^[a-zA-Z0-9.-]+$/.test(candidate))) {
-        return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model: primaryModel });
-      }
-      let model = primaryModel;
+      // Preserve the last known working classifier model when Vercel has no
+      // explicit override. This is a provider default, never an analysis fallback.
+      const model = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
+      if (!/^[a-zA-Z0-9.-]+$/.test(model)) return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model });
       devVisionLog("GEMINI_REQUEST_START", {});
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const geminiRequest = {
         method: "POST",
@@ -206,15 +203,13 @@ ${sellerText || "No seller text provided."}
         }),
       };
       // Gemini explicitly reports 503 UNAVAILABLE during temporary demand spikes.
-      // In that case, try the supported fallback once. Authentication, payload,
-      // and parse errors remain fail-fast and are never masked as success.
+      // Retry that condition once; authentication, model, payload, and parse errors
+      // remain fail-fast and are never masked as a successful analysis.
       let geminiResponse: Response | undefined;
-      for (const candidate of [...new Set([primaryModel, fallbackModel])]) {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
         geminiResponse = await fetch(endpoint, { ...geminiRequest, signal: AbortSignal.timeout(8000) });
-        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, model: candidate });
-        model = candidate;
-        if (geminiResponse.status !== 503) break;
+        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt });
+        if (geminiResponse.status !== 503 || attempt === 2) break;
         await sleep(300);
       }
       if (!geminiResponse) throw new Error("Gemini response unavailable");
