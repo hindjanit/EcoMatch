@@ -69,6 +69,7 @@ function phase25ContractDiagnostics(analysis: Record<string, unknown>) {
 }
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const isRetryableGeminiStatus = (status: number) => status === 429 || status === 503;
 
 export async function POST(request: Request) {
   try {
@@ -158,12 +159,13 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      // Preserve the last known working classifier model when Vercel has no
-      // explicit override. This is a provider default, never an analysis fallback.
-      const model = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
-      if (!/^[a-zA-Z0-9.-]+$/.test(model)) return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model });
+      const primaryModel = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
+      const fallbackModel = process.env.GEMINI_VISION_FALLBACK_MODEL || "gemini-3.7-flash";
+      if (![primaryModel, fallbackModel].every((candidate) => /^[a-zA-Z0-9.-]+$/.test(candidate))) {
+        return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model: primaryModel });
+      }
+      let model = primaryModel;
       devVisionLog("GEMINI_REQUEST_START", {});
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const geminiRequest = {
         method: "POST",
@@ -202,17 +204,29 @@ ${sellerText || "No seller text provided."}
           },
         }),
       };
-      // Gemini explicitly reports 503 UNAVAILABLE during temporary demand spikes.
-      // Retry that condition once; authentication, model, payload, and parse errors
-      // remain fail-fast and are never masked as a successful analysis.
-      let geminiResponse: Response | undefined;
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        geminiResponse = await fetch(endpoint, { ...geminiRequest, signal: AbortSignal.timeout(8000) });
-        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt });
-        if (geminiResponse.status !== 503 || attempt === 2) break;
-        await sleep(300);
+      const callModel = (candidate: string) => fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        { ...geminiRequest, signal: AbortSignal.timeout(8000) },
+      );
+
+      let geminiResponse = await callModel(primaryModel);
+      devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: 1 });
+
+      if (isRetryableGeminiStatus(geminiResponse.status)) {
+        console.warn("[Vision AI] primary attempt failed", { model: primaryModel, status: geminiResponse.status });
+        await sleep(500);
+        geminiResponse = await callModel(primaryModel);
+        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: 2 });
+
+        if (isRetryableGeminiStatus(geminiResponse.status)) {
+          console.warn("[Vision AI] primary retry failed", { model: primaryModel, status: geminiResponse.status });
+          console.info("[Vision AI] fallback model used: gemini-3.7-flash", { model: fallbackModel });
+          model = fallbackModel;
+          geminiResponse = await callModel(fallbackModel);
+          devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: "fallback" });
+          if (geminiResponse.ok) console.info("[Vision AI] fallback succeeded", { model: fallbackModel });
+        }
       }
-      if (!geminiResponse) throw new Error("Gemini response unavailable");
       devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status });
 
       if (!geminiResponse.ok) {
