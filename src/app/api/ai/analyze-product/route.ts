@@ -74,37 +74,39 @@ export async function POST(request: Request) {
   try {
     const { db, user } = await actor(request);
     const formData = await request.formData();
-    const suppliedImages = formData.getAll("images");
-    const images = suppliedImages.length ? suppliedImages : [formData.get("image")];
+    const image = formData.get("image");
     const sellerText = String(formData.get("sellerText") || "");
 
-    if (images.length < 4 || !images.every((image) => image instanceof File)) {
-      return visionFailure("VISION_IMAGE_COUNT_INVALID", "Please upload at least 4 product photos from different angles.", 400, { stage: "input_validation", imagePayloadCreated: false });
+    if (!(image instanceof File)) {
+      return visionFailure("VISION_IMAGE_INVALID", "Please upload a product image first.", 400, { stage: "input_validation", imagePayloadCreated: false });
     }
 
-    const productImages = images.slice(0, 4) as File[];
-    if (productImages.some((image) => !image.type.startsWith("image/"))) {
+    if (!image.type.startsWith("image/")) {
       return visionFailure("VISION_IMAGE_INVALID", "The selected file must be an image.", 400, { stage: "input_validation", imagePayloadCreated: false });
     }
 
-    if (productImages.some((image) => image.size > 5 * 1024 * 1024)) {
-      return visionFailure("VISION_IMAGE_INVALID", "Each image must be 5MB or smaller.", 400, { stage: "input_validation", imagePayloadCreated: false });
+    if (image.size > 5 * 1024 * 1024) {
+      return visionFailure("VISION_IMAGE_INVALID", "Image must be 5MB or smaller.", 400, { stage: "input_validation", imageMime: image.type, imagePayloadCreated: false });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) return visionFailure("VISION_API_KEY_MISSING", "Vision AI is temporarily unavailable.", 503, { stage: "configuration" });
 
+    const imageBytes = Buffer.from(await image.arrayBuffer());
+    const imageBase64 = imageBytes.toString("base64");
+
     const validMimes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
-    const imagePayloads = await Promise.all(productImages.map(async (image) => ({
-      mimeType: validMimes.includes(image.type) ? image.type : image.name.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
-      data: Buffer.from(await image.arrayBuffer()).toString("base64"),
-    })));
+    const mimeType = validMimes.includes(image.type)
+      ? image.type
+      : image.name.toLowerCase().endsWith(".png")
+      ? "image/png"
+      : "image/jpeg";
 
     const prompt = `
 You are EcoMatch Vision AI, an expert product understanding assistant for a sustainable resale, reuse, and circular materials marketplace in India.
 
-Analyze all four uploaded views of the same product together. Inspect physical form, branding, labels, materials, ports, and any visible damage across the views.
+Analyze the uploaded product photo carefully. Inspect the object's physical form, branding, logos, labels, materials, and ports.
 
 Guidelines for Identification:
 1. If the photo shows a computer peripheral (e.g. mouse, keyboard, headphones, monitor), identify it accurately. If an HP, Dell, Logitech, Lenovo, or Apple logo/text is visible, include the brand name and exact product type (e.g. "HP Wireless Mouse", "Logitech Wireless Keyboard").
@@ -175,7 +177,12 @@ ${sellerText || "No seller text provided."}
               role: "user",
               parts: [
                 { text: prompt },
-                ...imagePayloads.map((image) => ({ inlineData: image })),
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: imageBase64,
+                  },
+                },
               ],
             },
           ],
@@ -214,7 +221,7 @@ ${sellerText || "No seller text provided."}
         const upstreamMessage = typeof errorData?.error?.message === "string" ? errorData.error.message.slice(0, 300) : null;
         const code = geminiResponse.status === 404 ? "VISION_MODEL_NOT_FOUND" : geminiResponse.status === 401 || geminiResponse.status === 403 ? "VISION_AUTH_FAILED" : geminiResponse.status === 429 ? "VISION_RATE_LIMITED" : geminiResponse.status === 503 ? "VISION_UPSTREAM_UNAVAILABLE" : "VISION_UPSTREAM_ERROR";
         const message = code === "VISION_RATE_LIMITED" || code === "VISION_UPSTREAM_UNAVAILABLE" ? "Vision AI is temporarily busy. Please try again." : "Vision AI is temporarily unavailable.";
-        return visionFailure(code, message, geminiResponse.status === 429 || geminiResponse.status === 503 ? 503 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, upstreamMessage, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imagePayloadCreated: true });
+        return visionFailure(code, message, geminiResponse.status === 429 || geminiResponse.status === 503 ? 503 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, upstreamMessage, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imageMime: mimeType, imagePayloadCreated: true });
       }
 
       const raw = await geminiResponse.json();
@@ -226,12 +233,12 @@ ${sellerText || "No seller text provided."}
 
       if (raw?.candidates?.[0]?.finishReason === "MAX_TOKENS") {
         devVisionLog("GEMINI_TEXT_EXTRACTED", { errorName: "VisionResponseTruncated", errorMessage: "Gemini stopped at MAX_TOKENS; truncated JSON was rejected.", finishReason: "MAX_TOKENS", responseTextLength: responseText.length, responsePreview: responseText, jsonParsed: false, topLevelKeys: raw && typeof raw === "object" ? Object.keys(raw) : [] });
-        return visionFailure("VISION_RESPONSE_TRUNCATED", "Vision AI needs a moment to complete its assessment. Please retry.", 502, { stage: "response_truncated", model, imageMime: imagePayloads.map((image) => image.mimeType).join(","), imagePayloadCreated: true });
+        return visionFailure("VISION_RESPONSE_TRUNCATED", "Vision AI needs a moment to complete its assessment. Please retry.", 502, { stage: "response_truncated", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
       if (!responseText) {
         devVisionLog("JSON_PARSE", { errorName: "VisionResponseError", errorMessage: "Gemini candidate contained no text", jsonParsed: false, finishReason: typeof raw?.candidates?.[0]?.finishReason === "string" ? raw.candidates[0].finishReason : null, topLevelKeys: raw && typeof raw === "object" ? Object.keys(raw) : [] });
-        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_empty", model, imageMime: imagePayloads.map((image) => image.mimeType).join(","), imagePayloadCreated: true });
+        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_empty", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
       let analysis;
@@ -240,13 +247,13 @@ ${sellerText || "No seller text provided."}
         devVisionLog("JSON_PARSE", { jsonParsed: true, topLevelKeys: analysis && typeof analysis === "object" ? Object.keys(analysis) : [] });
       } catch (error) {
         devVisionLog("JSON_PARSE", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : String(error), responseTextLength: responseText.length, responsePreview: responseText, jsonParsed: false, topLevelKeys: raw && typeof raw === "object" ? Object.keys(raw) : [] });
-        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_parse", model, imageMime: imagePayloads.map((image) => image.mimeType).join(","), imagePayloadCreated: true });
+        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "response_parse", model, imageMime: mimeType, imagePayloadCreated: true });
       }
 
       const diagnostics = phase25ContractDiagnostics(analysis as Record<string, unknown>);
       if (diagnostics.missingFields.length) {
         devVisionLog("CONTRACT_VALIDATION", { errorName: "VisionContractError", errorMessage: "Required Phase25 contract fields missing", jsonParsed: true, topLevelKeys: Object.keys(analysis), productType: typeof diagnostics.productType === "string" ? diagnostics.productType : null, material: typeof diagnostics.material === "string" ? diagnostics.material : null, observationCount: diagnostics.visibleObservationsCount, dimensionKeys: diagnostics.dimensionKeys, missingFields: diagnostics.missingFields, invalidFields: [] });
-        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "phase25_contract", model, imageMime: imagePayloads.map((image) => image.mimeType).join(","), imagePayloadCreated: true });
+        return visionFailure("VISION_RESPONSE_INVALID", "Vision AI returned an unusable assessment. Try another clear product photo.", 502, { stage: "phase25_contract", model, imageMime: mimeType, imagePayloadCreated: true });
       }
       devVisionLog("CONTRACT_VALIDATION", { jsonParsed: true, topLevelKeys: Object.keys(analysis), productType: typeof diagnostics.productType === "string" ? diagnostics.productType : null, material: typeof diagnostics.material === "string" ? diagnostics.material : null, observationCount: diagnostics.visibleObservationsCount, dimensionKeys: diagnostics.dimensionKeys, severityValues: Array.isArray(analysis.visibleObservations) ? analysis.visibleObservations.map((entry: unknown) => entry && typeof entry === "object" ? (entry as Record<string, unknown>).severity || null : null) : [], missingFields: [], invalidFields: [] });
 
@@ -316,7 +323,7 @@ ${sellerText || "No seller text provided."}
       return NextResponse.json({ analysis });
     } catch (error) {
       const timeout = error instanceof Error && error.name === "TimeoutError";
-      return visionFailure(timeout ? "VISION_TIMEOUT" : "VISION_UPSTREAM_ERROR", timeout ? "Vision AI timed out. Please try again." : "Vision AI is temporarily unavailable.", 502, { stage: "request_exception", configuredModel: process.env.GEMINI_VISION_MODEL || null, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: imagePayloads.map((image) => image.mimeType).join(","), imagePayloadCreated: true, errorType: error instanceof Error ? error.name : "unknown" });
+      return visionFailure(timeout ? "VISION_TIMEOUT" : "VISION_UPSTREAM_ERROR", timeout ? "Vision AI timed out. Please try again." : "Vision AI is temporarily unavailable.", 502, { stage: "request_exception", configuredModel: process.env.GEMINI_VISION_MODEL || null, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true, errorType: error instanceof Error ? error.name : "unknown" });
     }
   } catch (error) {
     if (error instanceof Error && ("status" in error)) return fail(error);

@@ -367,9 +367,9 @@ export default function AddProductPage() {
   // =====================================================
 
   async function analyzeProductImage() {
-    if (selectedImages.length < 4) {
+    if (selectedImages.length === 0) {
       setError(
-        "Please upload at least 4 photos from different angles before running AI analysis.",
+        "Please upload at least one clear product image before using AI Vision.",
       );
       return;
     }
@@ -382,15 +382,17 @@ export default function AddProductPage() {
     const timeoutId = window.setTimeout(() => controller.abort(), 20000);
 
     try {
-      const imagesToAnalyze = await Promise.all(
-        selectedImages.slice(0, 4).map(async (file, index) => {
-          const optimizedBlob = await resizeImageForVision(file);
-          return new File([optimizedBlob], file.name || `product-${index + 1}.jpg`, { type: "image/jpeg" });
-        }),
+      const optimizedBlob = await resizeImageForVision(selectedImages[0]);
+      const imageToSend = new File(
+        [optimizedBlob],
+        selectedImages[0].name || "product.jpg",
+        {
+          type: "image/jpeg",
+        },
       );
 
       const formData = new FormData();
-      imagesToAnalyze.forEach((image) => formData.append("images", image));
+      formData.append("image", imageToSend);
       formData.append(
         "sellerText",
         [title, material, description, specifications]
@@ -1568,12 +1570,6 @@ export default function AddProductPage() {
               Upload authentic photos of the actual product. Maximum 5 images,
               5MB each.
             </p>
-            <div className={`mt-4 rounded-xl border p-4 text-sm ${selectedImages.length >= 4 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-              <p className="font-bold">AI Analysis works best with multiple product views.</p>
-              <p className="mt-1">Upload Front, Back, Side, and a close-up of any visible damage. Minimum 4 photos required for AI analysis.</p>
-              <p className="mt-2 font-semibold">{selectedImages.length >= 4 ? "✓ Minimum photo requirement met" : `Photos uploaded: ${selectedImages.length} / 4 minimum`}</p>
-              <p className="mt-2 text-xs">For accurate condition analysis, use clear photos of the actual item—not catalog or stock images. Include close-ups of scratches, dents, cracks, wear, rust, or other visible defects.</p>
-            </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#187052] bg-[#eef9f4] px-6 py-8 text-center transition hover:bg-[#e4f5ed]">
@@ -1622,9 +1618,9 @@ export default function AddProductPage() {
                       className="h-32 w-full object-cover"
                     />
 
-                    {index < 4 && (
+                    {index === 0 && (
                       <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
-                        AI view {index + 1}
+                        AI primary image
                       </span>
                     )}
 
@@ -1647,25 +1643,25 @@ export default function AddProductPage() {
                     EcoMatch Vision AI
                   </p>
                   <h3 className="mt-1 text-lg font-bold text-[#163038]">
-                    Analyze four product views together
+                    Analyze the actual product photo
                   </h3>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-                    AI considers the first four uploaded images together to identify the
-                    product, assess visible condition, and prepare listing details.
+                    AI inspects the first uploaded image to identify the
+                    product, suggest its category, estimate visible condition
+                    and prepare listing details.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={analyzeProductImage}
-                  disabled={visionLoading || selectedImages.length < 4}
+                  disabled={visionLoading || selectedImages.length === 0}
                   className="shrink-0 rounded-xl bg-[#163038] px-6 py-3 font-bold text-white transition hover:bg-[#0f242a] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {visionLoading
                     ? "Analyzing Image..."
                     : "✦ Analyze with Vision AI"}
                 </button>
-                {selectedImages.length < 4 && <p className="text-xs font-semibold text-amber-700">Add {4 - selectedImages.length} more photo{4 - selectedImages.length === 1 ? "" : "s"} to enable AI analysis.</p>}
               </div>
 
               {visionAnalysis && (
