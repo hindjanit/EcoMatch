@@ -279,8 +279,10 @@ CRITICAL PRICING RULES:
 }
 `;
 
+        const model = process.env.GEMINI_TRUST_MODEL || "gemini-3.5-flash-lite";
+        if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Invalid trust model configuration");
         const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey!)}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey!)}`,
           {
             method: "POST",
             signal: AbortSignal.timeout(8000),

@@ -183,11 +183,11 @@ export default function BuyerDashboard() {
 
           <div className="rounded-3xl border border-emerald-500/20 bg-[#061e16]/80 p-5 shadow-xl backdrop-blur-xl">
             <div className="flex items-center justify-between text-white/50 text-xs">
-              <span>Escrow Protection</span>
+              <span>Secure Handover</span>
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
             </div>
-            <p className="mt-2 text-3xl font-black text-white">100%</p>
-            <p className="mt-1 text-[11px] text-emerald-400">Secure Transfer Standard</p>
+            <p className="mt-2 text-2xl font-black text-white">OTP / QR</p>
+            <p className="mt-1 text-[11px] text-emerald-400">Dual confirmation + ledger</p>
           </div>
         </div>
 

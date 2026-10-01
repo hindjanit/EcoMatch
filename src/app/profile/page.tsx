@@ -33,6 +33,12 @@ type Profile = {
   verified_at?: string | null;
   trust_score?: number | null;
   location_name?: string | null;
+  account_type?: "individual" | "business" | null;
+  business_name?: string | null;
+  trade_name?: string | null;
+  gstin?: string | null;
+  business_verification_status?: string | null;
+  gst_verification_method?: string | null;
 };
 
 type Product = {
@@ -60,6 +66,10 @@ export default function ProfilePage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [tradeName, setTradeName] = useState("");
+  const [gstin, setGstin] = useState("");
+  const [businessSubmitting, setBusinessSubmitting] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -96,14 +106,28 @@ export default function ProfilePage() {
 
     if (profileResult.error) setError(profileResult.error.message);
     setProfile((profileResult.data || null) as Profile | null);
+    const loadedProfile = profileResult.data as Profile | null;
+    setBusinessName(loadedProfile?.business_name || "");
+    setTradeName(loadedProfile?.trade_name || "");
+    setGstin(loadedProfile?.gstin || "");
     setProducts((productResult.data || []) as Product[]);
     setDeals((dealResult.data || []) as Deal[]);
     setLoading(false);
   }
 
-  useEffect(() => {
-    void loadProfile();
-  }, []);
+  async function submitBusinessVerification(event: React.FormEvent) {
+    event.preventDefault();
+    setBusinessSubmitting(true); setError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch("/api/trust/business", { method: "POST", headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ businessName, tradeName, gstin }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not submit business verification.");
+      await loadProfile();
+    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Could not submit business verification."); }
+    finally { setBusinessSubmitting(false); }
+  }
+
 
   if (loading) {
     return (
@@ -120,7 +144,7 @@ export default function ProfilePage() {
     );
   }
 
-  const verified = profile?.verification_status === "verified";
+  const verified = ["verified", "verified_demo"].includes(profile?.verification_status || "");
   const activeListings = products.filter((p) => ["pending", "approved"].includes(p.status)).length;
   const soldListings = products.filter((p) => p.status === "sold").length;
   const completedDeals = deals.filter((d) => d.status === "completed").length;
@@ -169,7 +193,7 @@ export default function ProfilePage() {
                 >
                   {verified ? (
                     <>
-                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> UIDAI Verified
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> {profile?.verification_status === "verified_demo" ? "Identity Verified — Demo" : ["aadhaar", "uidai_offline_ekyc"].includes(profile?.verification_method || "") ? "Aadhaar Verified" : "Identity Verified"}
                     </>
                   ) : (
                     <>
@@ -216,19 +240,33 @@ export default function ProfilePage() {
 
               {!verified && (
                 <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-950/30 p-4">
-                  <h4 className="text-xs font-bold text-amber-300">Unlock Full Buy & Sell Limits</h4>
+                  <h4 className="text-xs font-bold text-amber-300">Optional Identity Trust</h4>
                   <p className="mt-1 text-xs text-white/60">
-                    Unverified accounts can post up to 30 listings under ₹1,000. To buy or sell products above ₹1,000, complete quick paperless Aadhaar verification to unlock up to 300 listings with no price cap.
+                    You can buy and sell without identity verification. Verify only when you want a higher-trust badge or when a specific deal/listing requires verification.
                   </p>
                   <Link
                     href="/verify-identity"
                     className="mt-3 inline-flex items-center gap-1 rounded-xl bg-amber-400 px-4 py-2 text-xs font-black text-[#03140e] hover:bg-amber-300"
                   >
-                    Verify Aadhaar Identity <ChevronRight className="h-3.5 w-3.5" />
+                    Verify Identity <ChevronRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               )}
             </div>
+
+            <form onSubmit={submitBusinessVerification} className="rounded-3xl border border-sky-400/20 bg-[#071623]/80 p-6 shadow-xl">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><p className="text-xs font-bold uppercase tracking-wider text-sky-300">Business verification</p><h2 className="mt-1 text-lg font-black">GST trust is separate from identity</h2></div>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${profile?.business_verification_status === "verified" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>{profile?.business_verification_status === "verified" ? "✓ GST Verified Business" : profile?.business_verification_status === "pending" ? "Verification Pending" : "Optional"}</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-white/60">A valid GSTIN is screened for format and checksum only. It is verified only after an authorised manual official lookup; no GST data is fabricated.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <input required value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Legal business name" className="min-h-12 rounded-xl border border-white/15 bg-black/30 px-3 text-sm" />
+                <input value={tradeName} onChange={(e) => setTradeName(e.target.value)} placeholder="Trade name (optional)" className="min-h-12 rounded-xl border border-white/15 bg-black/30 px-3 text-sm" />
+                <input required value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} maxLength={15} placeholder="15-character GSTIN" className="min-h-12 rounded-xl border border-white/15 bg-black/30 px-3 text-sm sm:col-span-2" />
+              </div>
+              <button disabled={businessSubmitting} className="mt-4 min-h-12 rounded-xl bg-sky-400 px-5 text-sm font-black text-slate-950 disabled:opacity-50">{businessSubmitting ? "Submitting…" : "Submit for Business Verification"}</button>
+            </form>
           </div>
 
           {/* Trust Score & Bento Stats */}
@@ -241,7 +279,7 @@ export default function ProfilePage() {
               <div className="mt-4 flex items-center justify-between">
                 <div>
                   <span className="text-4xl font-black text-emerald-300">
-                    {profile?.trust_score || 70}
+                    {profile?.trust_score ?? 0}
                   </span>
                   <span className="text-sm font-semibold text-white/40">/100</span>
                   <p className="mt-1 text-xs text-white/60">Calculated from verified identity & clean deals</p>

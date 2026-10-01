@@ -39,7 +39,6 @@ import {
   Leaf,
   Download,
   TrendingDown,
-  Sliders,
   Crosshair,
   Loader2,
   Search,
@@ -84,6 +83,18 @@ type Deal = {
   is_disputed?: boolean;
   buyer_disclosure_confirmation?: "matches" | "does_not_match" | null;
   disclosure_version_confirmed?: number | null;
+  buyer_identity_verification_required?: boolean;
+  seller_identity_verification_required?: boolean;
+  buyer_business_verification_required?: boolean;
+  seller_business_verification_required?: boolean;
+  verification_requested_by?: string | null;
+  verification_requested_at?: string | null;
+  identity_verification_requested_for?: string | null;
+  identity_verification_request_status?: "none" | "pending" | "declined" | "waived";
+  business_verification_requested_by?: string | null;
+  business_verification_requested_at?: string | null;
+  business_verification_requested_for?: string | null;
+  business_verification_request_status?: "none" | "pending" | "declined" | "waived";
 };
 
 type Product = {
@@ -101,6 +112,12 @@ type Profile = {
   id: string;
   full_name: string | null;
   verification_status: string | null;
+  verification_method?: string | null;
+  account_type?: string | null;
+  business_name?: string | null;
+  business_verification_status?: string | null;
+  gst_verification_method?: string | null;
+  trust_score?: number | null;
 };
 type Disclosure = { usage_band: string; usage_months: number | null; known_issue_status: string; defects: { label?: string; severity?: string }[]; refurbished: string; repaired: string; repair_details: string | null; other_details: string | null; overall_condition: string | null; reuse_potential: string | null; disclosure_version: number };
 type HandoverReadiness = {
@@ -110,6 +127,9 @@ type HandoverReadiness = {
     selfPickup: boolean;
     meetingReady: boolean;
     identity: boolean;
+    business?: boolean;
+    identityRequest?: boolean;
+    businessRequest?: boolean;
     verification: boolean;
     verificationMethod: "qr" | "otp" | null;
     proximity: boolean;
@@ -212,13 +232,12 @@ export default function DealRoomPage() {
 
   // Modals
   const [showEsgModal, setShowEsgModal] = useState(false);
-  const [showPriceSlider, setShowPriceSlider] = useState(false);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showEcoTrustModal, setShowEcoTrustModal] = useState(false);
+  const [passportStats, setPassportStats] = useState({ completedDealsCount: 0, activeListingsCount: 0, disputeCount: 0 });
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
 
-  const [counterPrice, setCounterPrice] = useState<number>(0);
   const [disputeReason, setDisputeReason] = useState("Product does not match listing");
   const [disputeDesc, setDisputeDesc] = useState("");
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
@@ -285,27 +304,17 @@ export default function DealRoomPage() {
       const res = await fetch("/api/deals/epr-certificate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dealId: deal.id,
-          productId: deal.product_id,
-          buyerId: deal.buyer_id,
-          sellerId: deal.seller_id,
-          buyerName: buyer?.full_name || "Verified Buyer",
-          sellerName: seller?.full_name || "Verified Seller",
-          category: product?.category || "Plastics",
-          materialTitle: product?.title || "Circular Asset Lot",
-          quantityKg: 1000,
-        }),
+        body: JSON.stringify({ dealId: deal.id }),
       });
       const data = await res.json();
       if (data.success && data.certificate) {
         setEprCertData(data.certificate);
         setShowEprModal(true);
       } else {
-        alert("Failed to generate EPR certificate.");
+        alert("Failed to generate circularity impact certificate.");
       }
     } catch (e) {
-      alert("Error generating EPR certificate.");
+      alert("Error generating circularity impact certificate.");
     } finally {
       setGeneratingEpr(false);
     }
@@ -374,9 +383,6 @@ export default function DealRoomPage() {
     setProximityVerified(Boolean(deal.proximity_verified));
     setQrVerified(Boolean(deal.qr_verified_at));
 
-    if (!counterPrice) {
-      setCounterPrice(Number(deal.agreed_price || product?.price || 0));
-    }
 
     if (deal.meeting_at) {
       const d = new Date(deal.meeting_at);
@@ -512,7 +518,7 @@ export default function DealRoomPage() {
       supabase.from("product_images").select("image_url").eq("product_id", current.product_id).limit(1),
       supabase
         .from("public_profiles")
-        .select("id,full_name,verification_status")
+        .select("id,full_name,verification_status,verification_method,account_type,business_name,business_verification_status,gst_verification_method,trust_score")
         .in("id", [current.buyer_id, current.seller_id]),
       supabase
         .from("ownership_events")
@@ -537,6 +543,44 @@ export default function DealRoomPage() {
     if (!quiet) setLoading(false);
   }
 
+  async function openEcoTrustPassport() {
+    if (!userId) return;
+    const [completedDeals, activeListings, disputes] = await Promise.all([
+      supabase
+        .from("deal_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "completed")
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`),
+      supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", userId)
+        .in("status", ["pending", "pending_review", "changes_requested", "approved", "reserved"]),
+      supabase.from("deal_disputes").select("id", { count: "exact", head: true }),
+    ]);
+    setPassportStats({
+      completedDealsCount: completedDeals.count || 0,
+      activeListingsCount: activeListings.count || 0,
+      disputeCount: disputes.count || 0,
+    });
+    setShowEcoTrustModal(true);
+  }
+
+  async function handleVerificationRequest(action: "request_identity" | "request_business" | "decline_identity" | "decline_business" | "waive_identity" | "waive_business") {
+    if (!deal) return;
+    setActionLoading(true);
+    setError("");
+    setMessage("");
+    const { error: rpcError } = await supabase.rpc("trust_deal_verification_request", { p_deal: deal.id, p_action: action });
+    if (rpcError) setError(rpcError.message);
+    else {
+      const label = action.replaceAll("_", " ");
+      setMessage(`✓ ${label.charAt(0).toUpperCase()}${label.slice(1)} updated.`);
+      await loadDealRoom(true);
+    }
+    setActionLoading(false);
+  }
+
   // State machine transition
   async function updateStatus(status: string) {
     if (!deal) return;
@@ -558,26 +602,6 @@ export default function DealRoomPage() {
     setActionLoading(false);
   }
 
-  async function handleUpdateAgreedPrice() {
-    if (!deal || counterPrice <= 0) return;
-    setActionLoading(true);
-    setError("");
-    setMessage("");
-
-    const { error: priceError } = await supabase
-      .from("deal_requests")
-      .update({ agreed_price: counterPrice, updated_at: new Date().toISOString() })
-      .eq("id", deal.id);
-
-    if (priceError) {
-      setError(`Could not update deal price: ${priceError.message}`);
-    } else {
-      setMessage(`✓ Deal value updated to ₹${counterPrice.toLocaleString("en-IN")}!`);
-      setDeal((prev) => (prev ? { ...prev, agreed_price: counterPrice } : prev));
-      setShowPriceSlider(false);
-    }
-    setActionLoading(false);
-  }
 
   async function saveMeetingProposal() {
     if (!deal) return;
@@ -618,8 +642,9 @@ export default function DealRoomPage() {
         console.warn("Auto coordinate resolve error:", err);
       }
       if (finalLat === null || finalLng === null) {
-        finalLat = 28.6139;
-        finalLng = 77.209;
+        setError("Could not resolve this meeting place. Select a location suggestion or use your current GPS location before saving.");
+        setActionLoading(false);
+        return;
       }
     }
 
@@ -775,7 +800,7 @@ export default function DealRoomPage() {
     setMessage("");
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("GPS not supported. Enable [DEMO MODE] above to test proximity verification.");
+      setError("GPS is not supported in this browser. Use a device with location access for secure proximity verification.");
       setCheckingIn(false);
       return;
     }
@@ -797,13 +822,16 @@ export default function DealRoomPage() {
           if (rpcErr) {
             setError(rpcErr.message);
           } else {
-            const dist = Number(data?.distance_to_meeting_meters || 42);
+            const rawDistance = Number(data?.distance_to_meeting_meters);
+            const dist = Number.isFinite(rawDistance) ? rawDistance : null;
             setProximityMeters(dist);
-            if (data?.verified || dist <= 250) {
-              setProximityVerified(true);
-              setMessage(`✓ Physical proximity verified (${dist}m from meeting point).`);
+            setProximityVerified(Boolean(data?.verified));
+            if (data?.verified) {
+              setMessage(`✓ Both parties are within the secure handover radius${dist !== null ? ` (${Math.round(dist)}m from meeting point)` : ""}.`);
+            } else if (data?.waiting_for_counterparty) {
+              setMessage(`✓ Your check-in is saved${dist !== null ? ` (${Math.round(dist)}m from meeting point)` : ""}. Waiting for the counterparty to check in.`);
             } else {
-              setMessage(`Check-in coordinates noted (${dist}m from meeting point).`);
+              setMessage(`Check-in saved, but both parties are not yet within the secure handover radius${dist !== null ? ` (${Math.round(dist)}m from meeting point)` : ""}.`);
             }
           }
         } catch (e) {
@@ -814,7 +842,7 @@ export default function DealRoomPage() {
       },
       () => {
         setCheckingIn(false);
-        setError("GPS permission denied. Enable [DEMO MODE] to test proximity verification.");
+        setError("GPS permission was denied. Location access is required for secure physical handover.");
       },
       { timeout: 8000 }
     );
@@ -826,14 +854,14 @@ export default function DealRoomPage() {
     setActionLoading(true);
     setError("");
 
-    const { data, error: rpcError } = await supabase.rpc("confirm_deal_handover", {
-      p_deal_id: deal.id,
+    const { data, error: rpcError } = await supabase.rpc("complete_secure_handover", {
+      p_deal: deal.id,
     });
 
     if (rpcError) {
       setError(rpcError.message);
     } else if (data === "completed") {
-      setMessage("🎉 Deal completed! Material ownership permanently hashed onto the EcoMatch Ledger.");
+      setMessage("🎉 Deal completed! Material ownership recorded in the EcoMatch hash-chained ledger.");
       setShowCertificateModal(true);
       confetti({
         particleCount: 150,
@@ -871,8 +899,7 @@ export default function DealRoomPage() {
       });
 
       if (disputeErr) {
-        // Fallback update
-        await supabase.from("deal_requests").update({ status: "disputed", is_disputed: true }).eq("id", deal.id);
+        throw disputeErr;
       }
 
       setShowDisputeModal(false);
@@ -920,12 +947,28 @@ export default function DealRoomPage() {
 
   const isSeller = deal.seller_id === userId;
   const isBuyer = deal.buyer_id === userId;
+  const identityVerified = (profile: Profile | null) => ["verified", "verified_demo"].includes(profile?.verification_status || "");
+  const businessVerified = (profile: Profile | null) => profile?.business_verification_status === "verified";
+  const buyerIdentityVerified = identityVerified(buyer);
+  const sellerIdentityVerified = identityVerified(seller);
+  const buyerBusinessVerified = businessVerified(buyer);
+  const sellerBusinessVerified = businessVerified(seller);
+  const counterparty = isBuyer ? seller : buyer;
+  const identityRequestTargetsMe = deal.identity_verification_requested_for === userId && deal.identity_verification_request_status === "pending";
+  const businessRequestTargetsMe = deal.business_verification_requested_for === userId && deal.business_verification_request_status === "pending";
+  const identityRequestByMe = deal.verification_requested_by === userId && ["pending", "declined"].includes(deal.identity_verification_request_status || "none");
+  const businessRequestByMe = deal.business_verification_requested_by === userId && ["pending", "declined"].includes(deal.business_verification_request_status || "none");
+  const requestedIdentityIsMandatory = deal.identity_verification_requested_for === deal.buyer_id ? Boolean(deal.buyer_identity_verification_required) : deal.identity_verification_requested_for === deal.seller_id ? Boolean(deal.seller_identity_verification_required) : false;
+  const requestedBusinessIsMandatory = deal.business_verification_requested_for === deal.buyer_id ? Boolean(deal.buyer_business_verification_required) : deal.business_verification_requested_for === deal.seller_id ? Boolean(deal.seller_business_verification_required) : false;
   const handoverRequirements = handoverReadiness?.requirements;
   const myHandoverConfirmed = isBuyer ? Boolean(deal.buyer_handover_confirmed_at) : Boolean(deal.seller_handover_confirmed_at);
   const handoverPrerequisitesMet = Boolean(
     handoverRequirements?.selfPickup &&
       handoverRequirements.meetingReady &&
       handoverRequirements.identity &&
+      (handoverRequirements.business ?? true) &&
+      (handoverRequirements.identityRequest ?? true) &&
+      (handoverRequirements.businessRequest ?? true) &&
       handoverRequirements.verification &&
       handoverRequirements.proximity &&
       handoverRequirements.disclosure &&
@@ -1040,17 +1083,11 @@ export default function DealRoomPage() {
                   />
                 )}
 
-                {/* Offer Slider */}
+                {/* The agreed price is frozen at deal creation. Negotiate via Offers before opening a Deal Room. */}
                 {!secureMode && ["requested", "accepted"].includes(deal.status) && (
-                  <button
-                    onClick={() => {
-                      setCounterPrice(effectivePrice);
-                      setShowPriceSlider(true);
-                    }}
-                    className="flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-bold text-sky-300 hover:bg-sky-500/25 transition"
-                  >
-                    <Sliders className="h-3 w-3" /> Offer Slider
-                  </button>
+                  <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-0.5 text-[10px] font-bold text-sky-200">
+                    Price locked for this deal
+                  </span>
                 )}
 
                 {/* Certificate Button */}
@@ -1086,6 +1123,89 @@ export default function DealRoomPage() {
             {error}
           </div>
         )}
+
+
+        {/* Optional person/business trust layer. Deal-level requirements are enforced by server RPCs. */}
+        <section className="mt-6 rounded-3xl border border-sky-400/20 bg-[#071923]/80 p-5 shadow-xl backdrop-blur-xl">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">Trust & Verification</p>
+              <h2 className="mt-1 text-lg font-black text-white">Optional verification, locked when this deal requires it</h2>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold text-white/60">No identity details are shared</span>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {[
+              { label: "Buyer", profile: buyer, identityOk: buyerIdentityVerified, businessOk: buyerBusinessVerified, identityRequired: Boolean(deal.buyer_identity_verification_required), businessRequired: Boolean(deal.buyer_business_verification_required) },
+              { label: "Seller", profile: seller, identityOk: sellerIdentityVerified, businessOk: sellerBusinessVerified, identityRequired: Boolean(deal.seller_identity_verification_required), businessRequired: Boolean(deal.seller_business_verification_required) },
+            ].map((party) => (
+              <div key={party.label} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">{party.label}</p>
+                    <p className="mt-0.5 text-sm font-black text-white">{party.profile?.business_name || party.profile?.full_name || `${party.label} profile`}</p>
+                  </div>
+                  {party.profile?.account_type === "business" && <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[9px] font-bold text-sky-300">B2B</span>}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold">
+                  <span className={`rounded-full px-2.5 py-1 ${party.identityOk ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-white/50"}`}>
+                    {party.identityOk ? "✓ Identity Verified" : "Identity Not Verified"}{party.identityRequired ? " · Required" : ""}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 ${party.businessOk ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-white/50"}`}>
+                    {party.businessOk ? "✓ GST Verified Business" : party.profile?.account_type === "business" ? "GST Not Verified" : "GST N/A"}{party.businessRequired ? " · Required" : ""}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!identityVerified(counterparty) && deal.identity_verification_request_status !== "pending" && (
+              <button disabled={actionLoading} onClick={() => handleVerificationRequest("request_identity")} className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-200 disabled:opacity-50">
+                Request {isBuyer ? "Seller" : "Buyer"} Identity Verification
+              </button>
+            )}
+            {(counterparty?.account_type === "business" || Boolean(isBuyer ? deal.seller_business_verification_required : deal.buyer_business_verification_required)) && !businessVerified(counterparty) && deal.business_verification_request_status !== "pending" && (
+              <button disabled={actionLoading} onClick={() => handleVerificationRequest("request_business")} className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-[11px] font-bold text-sky-200 disabled:opacity-50">
+                Request {isBuyer ? "Seller" : "Buyer"} GST Verification
+              </button>
+            )}
+          </div>
+
+          {identityRequestTargetsMe && (
+            <div className="mt-3 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-3 text-xs text-amber-100">
+              The other party requested identity verification before continuing.
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Link href="/verify-identity" className="rounded-lg bg-amber-300 px-3 py-1.5 font-black text-slate-950">Verify Identity</Link>
+                {!requestedIdentityIsMandatory && <button disabled={actionLoading} onClick={() => handleVerificationRequest("decline_identity")} className="rounded-lg border border-white/15 px-3 py-1.5 font-bold text-white/70">Decline</button>}
+              </div>
+            </div>
+          )}
+          {businessRequestTargetsMe && (
+            <div className="mt-3 rounded-2xl border border-sky-400/25 bg-sky-500/10 p-3 text-xs text-sky-100">
+              The other party requested GST business verification before continuing.
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Link href="/profile" className="rounded-lg bg-sky-300 px-3 py-1.5 font-black text-slate-950">Open Business Verification</Link>
+                {!requestedBusinessIsMandatory && <button disabled={actionLoading} onClick={() => handleVerificationRequest("decline_business")} className="rounded-lg border border-white/15 px-3 py-1.5 font-bold text-white/70">Decline</button>}
+              </div>
+            </div>
+          )}
+          {identityRequestByMe && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+              Identity request: <strong className="text-white">{deal.identity_verification_request_status}</strong>.
+              {!requestedIdentityIsMandatory && <button disabled={actionLoading} onClick={() => handleVerificationRequest("waive_identity")} className="rounded-lg bg-emerald-400 px-3 py-1.5 font-black text-slate-950">Continue Anyway</button>}
+              <button disabled={actionLoading} onClick={() => updateStatus("cancelled")} className="rounded-lg border border-red-400/30 px-3 py-1.5 font-bold text-red-200">Cancel Deal</button>
+            </div>
+          )}
+          {businessRequestByMe && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+              GST request: <strong className="text-white">{deal.business_verification_request_status}</strong>.
+              {!requestedBusinessIsMandatory && <button disabled={actionLoading} onClick={() => handleVerificationRequest("waive_business")} className="rounded-lg bg-emerald-400 px-3 py-1.5 font-black text-slate-950">Continue Anyway</button>}
+              <button disabled={actionLoading} onClick={() => updateStatus("cancelled")} className="rounded-lg border border-red-400/30 px-3 py-1.5 font-bold text-red-200">Cancel Deal</button>
+            </div>
+          )}
+        </section>
 
         {!secureMode && deal.fulfilment_mode !== "secure_delivery" && <div id="self-pickup">
         {/* 5-STAGE CYBER-INDUSTRIAL TIMELINE */}
@@ -1383,7 +1503,7 @@ export default function DealRoomPage() {
                     <span className="text-white/60">Status: </span>
                     <strong className={proximityVerified ? "text-emerald-400" : "text-amber-300"}>
                       {handoverRequirements?.proximity
-                        ? `✓ Verified (${proximityMeters || 38}m away)`
+                        ? `✓ Verified (${proximityMeters ?? 0}m away)`
                         : "Awaiting physical check-in"}
                     </strong>
                   </div>
@@ -1480,7 +1600,7 @@ export default function DealRoomPage() {
                 </div>
                 <h3 className="mt-3 text-xl font-black text-white">Deal Successfully Completed!</h3>
                 <p className="mt-1 text-xs text-white/60">
-                  Material ownership has been permanently recorded in the Tamper-Evident EcoMatch Ledger.
+                  Material ownership has been recorded in the tamper-evident EcoMatch hash chain.
                 </p>
 
                 <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -1496,7 +1616,7 @@ export default function DealRoomPage() {
                     disabled={generatingEpr}
                     className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 px-4 py-2 text-xs font-black text-[#03140e] hover:opacity-95 shadow-lg shadow-emerald-500/20"
                   >
-                    <Leaf className="h-4 w-4" /> {generatingEpr ? "Generating EPR..." : "📜 EPR Green Compliance Certificate"}
+                    <Leaf className="h-4 w-4" /> {generatingEpr ? "Generating impact certificate..." : "📜 Circularity Impact Certificate"}
                   </button>
 
                   <Link
@@ -1619,7 +1739,7 @@ export default function DealRoomPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white/70">Verified Participants</span>
                 <button
-                  onClick={() => setShowEcoTrustModal(true)}
+                  onClick={() => void openEcoTrustPassport()}
                   className="text-[10px] text-emerald-400 hover:underline font-bold"
                 >
                   View EcoTrust Passport ↗
@@ -1654,69 +1774,6 @@ export default function DealRoomPage() {
         </div>
         </div>}
       </div>
-
-      {/* PRICE COUNTER SLIDER MODAL */}
-      {showPriceSlider && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-3xl border border-emerald-500/30 bg-[#061d15] p-6 shadow-2xl text-white animate-in zoom-in-95">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Sliders className="h-5 w-5 text-sky-400" /> Adjust Deal Price
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPriceSlider(false)}
-                className="text-white/60 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="mt-1 text-xs text-white/60">
-              Current Rate: <strong>₹{effectivePrice.toLocaleString("en-IN")}</strong>. Adjust agreed amount:
-            </p>
-
-            <div className="mt-5 space-y-4">
-              <div className="rounded-2xl border border-emerald-500/20 bg-black/40 p-4 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-white/60 font-semibold">Offer Price</span>
-                  <span className="text-2xl font-black text-emerald-400 font-mono">
-                    ₹{Number(counterPrice || 0).toLocaleString("en-IN")}
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min={Math.max(1, Math.round(effectivePrice * 0.3))}
-                  max={Math.round(effectivePrice * 1.3)}
-                  step={Math.max(1, Math.round(effectivePrice / 100))}
-                  value={Number(counterPrice) || effectivePrice}
-                  onChange={(e) => setCounterPrice(Number(e.target.value))}
-                  className="w-full h-2.5 bg-emerald-950 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPriceSlider(false)}
-                  className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-semibold text-white/70"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleUpdateAgreedPrice}
-                  disabled={actionLoading || counterPrice <= 0}
-                  className="flex-1 rounded-2xl bg-emerald-400 py-3 text-xs font-black text-[#03140e] shadow-lg hover:bg-emerald-300 disabled:opacity-50"
-                >
-                  {actionLoading ? "Updating..." : "Update Deal Price"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* DISPUTE TRIGGER MODAL */}
       {showDisputeModal && (
@@ -1816,7 +1873,7 @@ export default function DealRoomPage() {
         eventHash={latestEventHash}
       />
 
-      {/* EPR GREEN COMPLIANCE CERTIFICATE MODAL */}
+      {/* CIRCULARITY IMPACT CERTIFICATE MODAL */}
       {showEprModal && eprCertData && (
         <EprComplianceModal
           certificate={eprCertData}
@@ -1830,10 +1887,9 @@ export default function DealRoomPage() {
         onClose={() => setShowEcoTrustModal(false)}
         userName={isBuyer ? buyer?.full_name || "Eco Buyer" : seller?.full_name || "Eco Seller"}
         isIdentityVerified={(isBuyer ? buyer : seller)?.verification_status === "verified"}
-        livenessPassed={true}
-        completedDealsCount={deal.status === "completed" ? 1 : 0}
-        activeListingsCount={1}
-        disputeCount={deal.status === "disputed" ? 1 : 0}
+        completedDealsCount={passportStats.completedDealsCount}
+        activeListingsCount={passportStats.activeListingsCount}
+        disputeCount={passportStats.disputeCount}
       />
 
       {/* ESG PASSPORT MODAL */}

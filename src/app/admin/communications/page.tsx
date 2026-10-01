@@ -107,25 +107,55 @@ export default function AdminCommunicationsPage() {
     }
   }
 
+  async function adminAction(payload: Record<string, unknown>) {
+    const response = await fetch("/api/trust/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || "Admin action failed");
+    return data;
+  }
+
   async function handleUpdateRiskStatus(id: string, newStatus: "REVIEWED" | "FALSE_POSITIVE") {
     setActionLoading(id);
     try {
-      await supabase.from("communication_risk_events").update({ review_status: newStatus }).eq("id", id);
+      await adminAction({
+        action: "review_communication",
+        id,
+        status: newStatus,
+        reason: newStatus === "FALSE_POSITIVE"
+          ? "Admin reviewed this communication flag and marked it as a false positive."
+          : "Admin reviewed this communication safety event.",
+      });
       setRiskEvents((prev) => prev.map((item) => (item.id === id ? { ...item, review_status: newStatus } : item)));
     } catch (e) {
       console.error("Update risk status error:", e);
+      alert(e instanceof Error ? e.message : "Could not update safety review.");
     } finally {
       setActionLoading(null);
     }
   }
 
   async function handleResolveDispute(disputeId: string, resolution: "RESOLVED_COMPLETED" | "DISMISSED") {
+    const reason = window.prompt(
+      resolution === "DISMISSED"
+        ? "Reason for dismissing this dispute:"
+        : "Resolution note (this resolves the dispute; it does not bypass secure handover):",
+      resolution === "DISMISSED"
+        ? "Admin reviewed the evidence and dismissed the dispute."
+        : "Admin reviewed the dispute and cleared the deal to continue through secure handover."
+    );
+    if (!reason || reason.trim().length < 10) return;
+
     setActionLoading(disputeId);
     try {
-      await supabase.from("deal_disputes").update({ status: resolution, resolved_at: new Date().toISOString() }).eq("id", disputeId);
+      await adminAction({ action: "resolve_dispute", id: disputeId, resolution, reason: reason.trim() });
       setDisputes((prev) => prev.map((item) => (item.id === disputeId ? { ...item, status: resolution } : item)));
     } catch (e) {
       console.error("Resolve dispute error:", e);
+      alert(e instanceof Error ? e.message : "Could not resolve dispute.");
     } finally {
       setActionLoading(null);
     }

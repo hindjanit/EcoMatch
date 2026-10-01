@@ -126,6 +126,11 @@ export default function ProductDetailsPage() {
 
   const [sellerTrust, setSellerTrust] = useState<{
     verification_status?: string;
+    verification_method?: string | null;
+    business_verification_status?: string | null;
+    gst_verification_method?: string | null;
+    business_name?: string | null;
+    trade_name?: string | null;
     trust_score?: number;
     full_name?: string;
     location_name?: string | null;
@@ -164,7 +169,7 @@ export default function ProductDetailsPage() {
 
     const { data: sellerData } = await supabase
       .from("public_profiles")
-      .select("verification_status, trust_score, full_name, location_name, latitude, longitude")
+      .select("verification_status, verification_method, business_verification_status, gst_verification_method, business_name, trade_name, trust_score, full_name, location_name, latitude, longitude")
       .eq("id", productData.seller_id)
       .maybeSingle();
 
@@ -248,6 +253,10 @@ export default function ProductDetailsPage() {
 
   async function requestSecureDeal() {
     if (!product) return;
+    if (selectedQuantity !== totalQty) {
+      setDealMessage("Partial-lot checkout is not supported yet. Ask the seller to create a separate split listing so ownership stays accurate.");
+      return;
+    }
     if (product.status !== "approved") {
       setDealMessage("This listing is no longer available for a new secure deal.");
       return;
@@ -271,21 +280,7 @@ export default function ProductDetailsPage() {
       return;
     }
 
-    // Gate: Aadhaar Verification required to buy products above ₹1,000
-    if (Number(product.price) > 1000) {
-      const { data: buyerProfile } = await supabase
-        .from("profiles")
-        .select("verification_status")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (buyerProfile?.verification_status !== "verified") {
-        setDealMessage("⚠️ Aadhaar Identity Verification is required to buy products above ₹1,000. Redirecting to verification...");
-        setDealLoading(false);
-        setTimeout(() => router.push("/verify-identity"), 1200);
-        return;
-      }
-    }
+    // Identity/GST verification is optional unless the listing/deal explicitly requires it.
 
     const { data: existing } = await supabase
       .from("deal_requests")
@@ -311,6 +306,7 @@ export default function ProductDetailsPage() {
         buyer_id: user.id,
         seller_id: product.seller_id,
         status: "requested",
+        agreed_price: Number(product.price),
       })
       .select("id")
       .single();
@@ -331,6 +327,10 @@ export default function ProductDetailsPage() {
 
   async function sendOffer() {
     if (!product || !product.is_negotiable) return;
+    if (selectedQuantity !== totalQty) {
+      setOfferMessage("Partial-lot offers are inquiry-only. Ask the seller to create a separate split listing before making a binding offer.");
+      return;
+    }
     const amount = Number(offerPrice);
     if (!amount || amount <= 0) {
       setOfferMessage("Enter a valid offer amount.");
@@ -355,21 +355,7 @@ export default function ProductDetailsPage() {
       return;
     }
 
-    // Gate: Aadhaar Verification required to make offers above ₹1,000
-    if (amount > 1000) {
-      const { data: buyerProfile } = await supabase
-        .from("profiles")
-        .select("verification_status")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (buyerProfile?.verification_status !== "verified") {
-        setOfferMessage("⚠️ Aadhaar Identity Verification is required to make offers above ₹1,000. Redirecting to verification...");
-        setOfferLoading(false);
-        setTimeout(() => router.push("/verify-identity"), 1200);
-        return;
-      }
-    }
+    // Offers remain available to unverified users; deal-level trust requirements are enforced server-side.
 
     const { error: offerError } = await supabase.from("product_offers").insert({
       product_id: product.id,
@@ -613,7 +599,7 @@ export default function ProductDetailsPage() {
                   className="flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 shadow-sm transition hover:bg-emerald-500/25 hover:scale-105"
                 >
                   <Leaf className="h-3.5 w-3.5 text-emerald-400" />
-                  View ESG / EPR Certificate
+                  View Circularity Impact Preview
                 </button>
               </div>
 
@@ -658,7 +644,7 @@ export default function ProductDetailsPage() {
                   {product.is_negotiable ? "Price Negotiable" : "Fixed Price"}
                 </span>
                 <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Verified Item
+                  <ShieldCheck className="h-3.5 w-3.5" /> Safety-Reviewed Listing
                 </span>
               </div>
 
@@ -790,7 +776,7 @@ export default function ProductDetailsPage() {
               {/* CTA Buttons */}
               <div className="mt-6 flex flex-col gap-3">
                 <button
-                  onClick={requestSecureDeal}
+                  onClick={selectedQuantity !== totalQty ? openChatWithSplitInquiry : requestSecureDeal}
                   disabled={dealLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 py-3.5 text-sm font-black text-[#03140e] shadow-[0_0_20px_rgba(16,185,129,0.35)] transition hover:from-emerald-300 hover:to-emerald-400 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
                 >
@@ -798,9 +784,14 @@ export default function ProductDetailsPage() {
                   {dealLoading
                     ? "Opening Deal Room..."
                     : selectedQuantity !== totalQty
-                    ? `Enter Deal Room for ${selectedQuantity} ${product.quantity_unit || "units"}`
+                    ? "Ask Seller About Partial Lot"
                     : "Enter Secure Deal Room"}
                 </button>
+                {selectedQuantity !== totalQty && (
+                  <p className="text-[10px] leading-4 text-amber-200/80">
+                    Partial quantity is an inquiry calculator only. Ownership transfer currently represents the full listing, so confirm a split with the seller before a separate split listing/deal is created.
+                  </p>
+                )}
 
                 {/* Communication Actions: Chat & Secure Call */}
                 <div className="grid grid-cols-2 gap-3">
@@ -822,13 +813,13 @@ export default function ProductDetailsPage() {
                 </div>
 
                 {/* Make Offer Button if negotiable */}
-                {product.is_negotiable && (
+                {product.is_negotiable && selectedQuantity === totalQty && (
                   <button
                     onClick={() => setShowOfferModal(true)}
                     className="w-full flex items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
                   >
                     <TrendingDown className="h-4 w-4" />
-                    <span>{selectedQuantity !== totalQty ? "Make Offer on Custom Qty" : "Make an Offer"}</span>
+                    <span>Make an Offer</span>
                   </button>
                 )}
 
@@ -836,8 +827,8 @@ export default function ProductDetailsPage() {
                 <div className="flex items-center justify-between px-2 py-1 text-[11px] text-white/50 border-t border-white/5 pt-2">
                   <div className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="font-semibold text-emerald-300">Seller Online</span>
-                    <span className="text-white/40">· Phone Number Masked</span>
+                    <span className="font-semibold text-emerald-300">In-app contact available</span>
+                    <span className="text-white/40">· Contact details private</span>
                   </div>
                   <span className="text-[10px] text-white/40 font-mono">Private in-app audio call</span>
                 </div>
@@ -859,6 +850,9 @@ export default function ProductDetailsPage() {
             <TrustBadge
               sellerName={sellerTrust?.full_name}
               verificationStatus={sellerTrust?.verification_status}
+              verificationMethod={sellerTrust?.verification_method}
+              businessVerificationStatus={sellerTrust?.business_verification_status}
+              gstVerificationMethod={sellerTrust?.gst_verification_method}
               trustScore={sellerTrust?.trust_score}
               locationName={sellerTrust?.location_name}
               latitude={sellerTrust?.latitude}

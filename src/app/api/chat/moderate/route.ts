@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { actor, bodyJson, rateLimit } from "@/lib/trust/server";
 
 export const runtime = "nodejs";
 
@@ -191,10 +192,12 @@ function comprehensiveSafetyCheck(text: string, recentUserMessages?: string[]): 
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const { db, user } = await actor(request);
+    await rateLimit(db, `chat-moderate:${user.id}`, 60);
+    const body = await bodyJson(request, 12_000);
     const message = String(body?.message || "").trim().slice(0, 2000);
     const recentMessages = Array.isArray(body?.recentMessages)
-      ? (body.recentMessages as string[])
+      ? body.recentMessages.slice(-8).map((value) => String(value).slice(0, 500))
       : [];
 
     if (!message) {
@@ -216,6 +219,7 @@ export async function POST(request: Request) {
 
     // Step 2: AI Safety Semantic Scanner via Gemini
     const apiKey = process.env.GEMINI_API_KEY;
+    const model = process.env.GEMINI_TRUST_MODEL || "gemini-3.5-flash-lite";
     if (!apiKey) return NextResponse.json(ruleResult);
 
     const prompt = `You are the EcoMatch Anti-Circumvention AI Guard.
@@ -235,7 +239,7 @@ User Message: ${JSON.stringify(message)}`;
 
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
         {
           method: "POST",
           signal: AbortSignal.timeout(3500),

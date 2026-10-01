@@ -10,24 +10,26 @@ export async function POST(request: Request, context: Context) {
     const provider = (await context.params).provider.toLowerCase();
 
     if (provider === "shiprocket") {
-      const configuredSecret = process.env.SHIPROCKET_WEBHOOK_SECRET;
+      const configuredSecret = process.env.SHIPROCKET_WEBHOOK_SECRET?.trim();
 
-      // Shiprocket sends an optional custom security token in the `x-api-key` header
-      if (configuredSecret && configuredSecret.trim().length > 0) {
-        const receivedToken = request.headers.get("x-api-key");
-        if (!receivedToken) {
-          throw new HttpError(401, "Missing webhook authorization header (x-api-key)");
-        }
+      // Never accept an unauthenticated public tracking mutation. If the provider
+      // webhook secret is not configured, keep the endpoint disabled.
+      if (!configuredSecret) {
+        throw new HttpError(503, "Shiprocket webhook verification is not configured");
+      }
+      const receivedToken = request.headers.get("x-api-key");
+      if (!receivedToken) {
+        throw new HttpError(401, "Missing webhook authorization header (x-api-key)");
+      }
 
-        const expectedBuffer = Buffer.from(configuredSecret.trim());
-        const receivedBuffer = Buffer.from(receivedToken.trim());
+      const expectedBuffer = Buffer.from(configuredSecret);
+      const receivedBuffer = Buffer.from(receivedToken.trim());
 
-        if (
-          expectedBuffer.length !== receivedBuffer.length ||
-          !timingSafeEqual(expectedBuffer, receivedBuffer)
-        ) {
-          throw new HttpError(403, "Invalid webhook security token");
-        }
+      if (
+        expectedBuffer.length !== receivedBuffer.length ||
+        !timingSafeEqual(expectedBuffer, receivedBuffer)
+      ) {
+        throw new HttpError(403, "Invalid webhook security token");
       }
 
       const rawBody = await request.text();

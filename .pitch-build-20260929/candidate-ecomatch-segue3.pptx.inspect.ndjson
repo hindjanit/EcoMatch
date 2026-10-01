@@ -1,0 +1,226 @@
+{"kind":"deck","id":"pr/kj56ns","name":"Deck"}
+{"kind":"layout","layoutId":"c348e5de-9f5f-45cc-8b18-4b1311bcbab3","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"e1c4b56f-a7d0-4d5e-b2ab-5aea8a8912b9","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/4cyqgu","slide":1,"title":"ECOMATCH","textShapes":7}
+{"kind":"shape","id":"sh/ju1876tw","slide":1,"bbox":[74,74,9,500]}
+{"kind":"textbox","id":"sh/kva9gbah","slide":1,"text":"ECOMATCH","textPreview":"ECOMATCH","textChars":8,"textLines":1,"bbox":[112,74,250,28]}
+{"kind":"textbox","id":"sh/lw3q9gb2","slide":1,"text":"A circular marketplace\nfor cleaner, more\nresourceful cities","textPreview":"A circular marketplace | for cleaner, more | resourceful cities","textChars":59,"textLines":3,"bbox":[112,145,760,255]}
+{"kind":"textbox","id":"sh/6xcri1sn","slide":1,"text":"Giving usable materials, equipment and industrial surplus a trusted second life.","textPreview":"Giving usable materials, equipment and industrial surplus a trusted second life.","textChars":80,"textLines":1,"bbox":[118,432,640,62]}
+{"kind":"shape","id":"sh/7yl8b6t8","slide":1,"bbox":[882,140,260,260]}
+{"kind":"textbox","id":"sh/8ju9kbat","slide":1,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[927,190,170,100]}
+{"kind":"textbox","id":"sh/tk3qdgbe","slide":1,"text":"Sustainable Cities\nand Communities","textPreview":"Sustainable Cities | and Communities","textChars":34,"textLines":2,"bbox":[894,320,235,54]}
+{"kind":"textbox","id":"sh/m1876hcj","slide":1,"text":"Segue 3.0 Finale  |  Team EcoMatch\nJanit Kumar Hind · Krish Tiwari · Jeetu Yadav · Khushboo Sharma · Khushi Kumari","textPreview":"Segue 3.0 Finale  |  Team EcoMatch | Janit Kumar Hind · Krish Tiwari · Jeetu Yadav · Khushboo Sharma · Khushi Kumari","textChars":114,"textLines":2,"bbox":[112,600,880,48]}
+{"kind":"textbox","id":"sh/n2h8zmt4","slide":1,"text":"Live product\neco-match-sepia.vercel.app","textPreview":"Live product | eco-match-sepia.vercel.app","textChars":39,"textLines":2,"bbox":[965,604,205,42]}
+{"kind":"notes","id":"nt/4cyqgu","slide":1,"text":"Opening: EcoMatch helps cities recover value before usable material becomes waste. Show the live product after the pitch."}
+{"kind":"slide","id":"sl/6f4qqg","slide":2,"title":"02","textShapes":13}
+{"kind":"textbox","id":"sh/bqpcbatk","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/crydkfup","slide":2,"text":"The urban surplus problem","textPreview":"The urban surplus problem","textChars":25,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/xs7udkba","slide":2,"text":"Usable assets are difficult to discover, verify and move before they become waste.","textPreview":"Usable assets are difficult to discover, verify and move before they become waste.","textChars":82,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/2lwbe5cn","slide":2,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/nm5c7at8","slide":2,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"textbox","id":"sh/onytgfut","slide":2,"text":"A city already has the material it needs.\nIt is simply locked inside offices, warehouses and institutions.","textPreview":"A city already has the material it needs. | It is simply locked inside offices, warehouses and institutions.","textChars":106,"textLines":2,"bbox":[72,250,570,150]}
+{"kind":"shape","id":"sh/po7u9kbe","slide":2,"bbox":[710,236,440,292]}
+{"kind":"textbox","id":"sh/mh0vqps7","slide":2,"text":"What happens today","textPreview":"What happens today","textChars":18,"textLines":1,"bbox":[750,268,300,28]}
+{"kind":"shape","id":"sh/7i9cjutc","slide":2,"bbox":[750,320,34,34]}
+{"kind":"textbox","id":"sh/v6xo32lc","slide":2,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[758,328,18,16]}
+{"kind":"textbox","id":"sh/u5o7uxkr","slide":2,"text":"A seller has usable surplus but no trusted buyer","textPreview":"A seller has usable surplus but no trusted buyer","textChars":48,"textLines":1,"bbox":[802,321,300,38]}
+{"kind":"shape","id":"sh/h8zq5c32","slide":2,"bbox":[750,382,34,34]}
+{"kind":"textbox","id":"sh/w76pw72h","slide":2,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[758,390,18,16]}
+{"kind":"textbox","id":"sh/jah87ml8","slide":2,"text":"A buyer cannot assess condition, location or fair value","textPreview":"A buyer cannot assess condition, location or fair value","textChars":55,"textLines":1,"bbox":[802,383,300,38]}
+{"kind":"shape","id":"sh/i987yhkn","slide":2,"bbox":[750,444,34,34]}
+{"kind":"textbox","id":"sh/5czqtcje","slide":2,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[758,452,18,16]}
+{"kind":"textbox","id":"sh/4bqp072t","slide":2,"text":"Transport and handover feel risky, so reuse stalls","textPreview":"Transport and handover feel risky, so reuse stalls","textChars":50,"textLines":1,"bbox":[802,445,300,38]}
+{"kind":"textbox","id":"sh/ryh8vm14","slide":2,"text":"Result: material loses value, disposal pressure grows and cities miss a local reuse opportunity.","textPreview":"Result: material loses value, disposal pressure grows and cities miss a local reuse opportunity.","textChars":96,"textLines":1,"bbox":[72,560,1000,42]}
+{"kind":"notes","id":"nt/6f4qqg","slide":2,"text":"Problem framing. No local waste statistic is claimed without a source."}
+{"kind":"slide","id":"sl/ac07fh","slide":3,"title":"03","textShapes":9}
+{"kind":"textbox","id":"sh/jmtoz2do","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/4n2587e9","slide":3,"text":"Reuse before disposal","textPreview":"Reuse before disposal","textChars":21,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/5ob61svu","slide":3,"text":"EcoMatch creates a local path for usable assets before they enter the waste stream.","textPreview":"EcoMatch creates a local path for usable assets before they enter the waste stream.","textChars":83,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/uh0n2dw7","slide":3,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/vitovidc","slide":3,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"textbox","id":"sh/wj254nex","slide":3,"text":"“Reduce the adverse per capita environmental impact of cities … paying special attention to air quality and municipal and other waste management.”","textPreview":"“Reduce the adverse per capita environmental impact of cities … paying special attention to air quality and municipal and other waste man...","textChars":146,"textLines":1,"bbox":[90,250,820,130]}
+{"kind":"shape","id":"sh/hkb6xsvi","slide":3,"bbox":[940,240,198,198]}
+{"kind":"textbox","id":"sh/mt0nydwv","slide":3,"text":"11.6","textPreview":"11.6","textChars":4,"textLines":1,"bbox":[965,280,148,52]}
+{"kind":"textbox","id":"sh/7u94ridg","slide":3,"text":"Waste management\n& city impact","textPreview":"Waste management | & city impact","textChars":30,"textLines":2,"bbox":[962,348,153,40]}
+{"kind":"textbox","id":"sh/z6po32pg","slide":3,"text":"EcoMatch acts upstream: it makes reuse a practical option before a usable item reaches the waste stream.","textPreview":"EcoMatch acts upstream: it makes reuse a practical option before a usable item reaches the waste stream.","textChars":104,"textLines":1,"bbox":[90,480,865,65]}
+{"kind":"textbox","id":"sh/y5gnaxov","slide":3,"text":"Source: United Nations Sustainable Development Goal 11, Target 11.6","textPreview":"Source: United Nations Sustainable Development Goal 11, Target 11.6","textChars":67,"textLines":1,"bbox":[90,637,720,17]}
+{"kind":"notes","id":"nt/ac07fh","slide":3,"text":"Source: https://sdgs.un.org/goals/goal11. Target 11.6 wording. EcoMatch contribution is an intended pathway, not a measured claim."}
+{"kind":"slide","id":"sl/i28s99","slide":4,"title":"04","textShapes":14}
+{"kind":"textbox","id":"sh/6t8zipkj","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/twzit4ja","slide":4,"text":"Three users, one broken exchange","textPreview":"Three users, one broken exchange","textChars":32,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/8vqhkzip","slide":4,"text":"Each stakeholder sees the same surplus through a different risk.","textPreview":"Each stakeholder sees the same surplus through a different risk.","textChars":64,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/jqxgnu1s","slide":4,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/ypozepkn","slide":4,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/lsfypkjy","slide":4,"bbox":[72,270,330,235]}
+{"kind":"textbox","id":"sh/kr6hgf2d","slide":4,"text":"Material owner","textPreview":"Material owner","textChars":14,"textLines":1,"bbox":[98,304,270,30]}
+{"kind":"textbox","id":"sh/3m10ze1c","slide":4,"text":"“I want to recover value, but I need a serious buyer and safe pickup.”","textPreview":"“I want to recover value, but I need a serious buyer and safe pickup.”","textChars":70,"textLines":1,"bbox":[98,358,275,95]}
+{"kind":"textbox","id":"sh/ilszq90r","slide":4,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[98,462,60,22]}
+{"kind":"shape","id":"sh/8fu1kn6p","slide":4,"bbox":[452,270,330,235]}
+{"kind":"textbox","id":"sh/903idsna","slide":4,"text":"Buyer / recycler","textPreview":"Buyer / recycler","textChars":16,"textLines":1,"bbox":[478,304,270,30]}
+{"kind":"textbox","id":"sh/mdczidoj","slide":4,"text":"“I need condition, price and location clarity before committing.”","textPreview":"“I need condition, price and location clarity before committing.”","textChars":65,"textLines":1,"bbox":[478,358,275,95]}
+{"kind":"textbox","id":"sh/nel0bi54","slide":4,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[478,462,60,22]}
+{"kind":"shape","id":"sh/0bahg36d","slide":4,"bbox":[832,270,330,235]}
+{"kind":"textbox","id":"sh/lc3i987y","slide":4,"text":"City ecosystem","textPreview":"City ecosystem","textChars":14,"textLines":1,"bbox":[858,304,270,30]}
+{"kind":"textbox","id":"sh/y9szedon","slide":4,"text":"“More assets should circulate locally before they become disposal work.”","textPreview":"“More assets should circulate locally before they become disposal work.”","textChars":72,"textLines":1,"bbox":[858,358,275,95]}
+{"kind":"textbox","id":"sh/za107yps","slide":4,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[858,462,60,22]}
+{"kind":"textbox","id":"sh/c7ahc36h","slide":4,"text":"EcoMatch gives each side the information and protocol needed to progress to a safe exchange.","textPreview":"EcoMatch gives each side the information and protocol needed to progress to a safe exchange.","textChars":92,"textLines":1,"bbox":[72,565,1030,42]}
+{"kind":"notes","id":"nt/i28s99","slide":4,"text":"User problem model based on product design observation. No customer validation count is claimed."}
+{"kind":"slide","id":"sl/tifaom","slide":5,"title":"05","textShapes":20}
+{"kind":"textbox","id":"sh/c3ax8fa9","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/b21gza9o","slide":5,"text":"EcoMatch turns scattered surplus into a trusted exchange","textPreview":"EcoMatch turns scattered surplus into a trusted exchange","textChars":56,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/q1sf65s3","slide":5,"text":"LIST  →  MATCH  →  VERIFY  →  DEAL  →  MOVE  →  HANDOVER  →  OWNERSHIP RECORD","textPreview":"LIST  →  MATCH  →  VERIFY  →  DEAL  →  MOVE  →  HANDOVER  →  OWNERSHIP RECORD","textChars":77,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/p0jyx0ri","slide":5,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/ozqx4vax","slide":5,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/3yhgvqtc","slide":5,"bbox":[100,255,112,40]}
+{"kind":"textbox","id":"sh/2d8f2ls7","slide":5,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[132,265,46,16]}
+{"kind":"textbox","id":"sh/9w3y94r2","slide":5,"text":"List","textPreview":"List","textChars":4,"textLines":1,"bbox":[244,257,180,26]}
+{"kind":"textbox","id":"sh/8vuhgzah","slide":5,"text":"Photos and product details become a structured listing","textPreview":"Photos and product details become a structured listing","textChars":54,"textLines":1,"bbox":[436,259,630,31]}
+{"kind":"shape","id":"sh/i1on2d4f","slide":5,"bbox":[154,297,2,28]}
+{"kind":"shape","id":"sh/32hovil0","slide":5,"bbox":[100,325,112,40]}
+{"kind":"textbox","id":"sh/43q543m5","slide":5,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[132,335,46,16]}
+{"kind":"textbox","id":"sh/54z6x83q","slide":5,"text":"Evaluate","textPreview":"Evaluate","textChars":8,"textLines":1,"bbox":[244,327,180,26]}
+{"kind":"textbox","id":"sh/udonyt43","slide":5,"text":"AI assistance, condition notes and fair-price context","textPreview":"AI assistance, condition notes and fair-price context","textChars":53,"textLines":1,"bbox":[436,329,630,31]}
+{"kind":"shape","id":"sh/vexorylo","slide":5,"bbox":[154,367,2,28]}
+{"kind":"shape","id":"sh/gf6503m9","slide":5,"bbox":[100,395,112,40]}
+{"kind":"textbox","id":"sh/h0f6t83u","slide":5,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[132,405,46,16]}
+{"kind":"textbox","id":"sh/e9s7axkn","slide":5,"text":"Deal","textPreview":"Deal","textChars":4,"textLines":1,"bbox":[244,397,180,26]}
+{"kind":"textbox","id":"sh/fa1o32ls","slide":5,"text":"Private negotiation with verified identity signals","textPreview":"Private negotiation with verified identity signals","textChars":50,"textLines":1,"bbox":[436,399,630,31]}
+{"kind":"shape","id":"sh/betkvu1k","slide":5,"bbox":[154,437,2,28]}
+{"kind":"shape","id":"sh/adk3mpkz","slide":5,"bbox":[100,465,112,40]}
+{"kind":"textbox","id":"sh/xgb2xkja","slide":5,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[132,475,46,16]}
+{"kind":"textbox","id":"sh/wf2loz25","slide":5,"text":"Move","textPreview":"Move","textChars":4,"textLines":1,"bbox":[244,467,180,26]}
+{"kind":"textbox","id":"sh/jitkzu1g","slide":5,"text":"Seller pickup and buyer destination create a route estimate","textPreview":"Seller pickup and buyer destination create a route estimate","textChars":59,"textLines":1,"bbox":[436,469,630,31]}
+{"kind":"shape","id":"sh/yhk3qpkv","slide":5,"bbox":[154,507,2,28]}
+{"kind":"shape","id":"sh/lkv214jm","slide":5,"bbox":[100,535,112,40]}
+{"kind":"textbox","id":"sh/kjmlsz21","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[132,545,46,16]}
+{"kind":"textbox","id":"sh/76d43e1s","slide":5,"text":"Complete","textPreview":"Complete","textChars":8,"textLines":1,"bbox":[244,537,180,26]}
+{"kind":"textbox","id":"sh/6l43u9k7","slide":5,"text":"Evidence, QR/OTP handover and ledger record","textPreview":"Evidence, QR/OTP handover and ledger record","textChars":43,"textLines":1,"bbox":[436,539,630,31]}
+{"kind":"textbox","id":"sh/4b61kjy5","slide":5,"text":"One platform for discovery, confidence and accountable handover.","textPreview":"One platform for discovery, confidence and accountable handover.","textChars":64,"textLines":1,"bbox":[100,625,850,32]}
+{"kind":"notes","id":"nt/tifaom","slide":5,"text":"Core EcoMatch workflow. Demo it live after slide 8."}
+{"kind":"slide","id":"sl/m8a11z","slide":6,"title":"06","textShapes":23}
+{"kind":"textbox","id":"sh/adoz2p8v","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/xgfyxk76","slide":6,"text":"This is not a concept. EcoMatch is live.","textPreview":"This is not a concept. EcoMatch is live.","textChars":40,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/cf6h4zql","slide":6,"text":"A deployed product connects discovery to a secure deal room.","textPreview":"A deployed product connects discovery to a secure deal room.","textChars":60,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/z2hgzupc","slide":6,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/y1oz6p8r","slide":6,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/l4zy147i","slide":6,"bbox":[72,248,340,135]}
+{"kind":"textbox","id":"sh/k3qh8zqx","slide":6,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[94,268,35,18]}
+{"kind":"textbox","id":"sh/76h03ep8","slide":6,"text":"Marketplace","textPreview":"Marketplace","textChars":11,"textLines":1,"bbox":[94,296,275,26]}
+{"kind":"textbox","id":"sh/m58za983","slide":6,"text":"Search reusable materials, filter by location and view seller signals","textPreview":"Search reusable materials, filter by location and view seller signals","textChars":69,"textLines":1,"bbox":[94,328,285,42]}
+{"kind":"shape","id":"sh/0f2h4zex","slide":6,"bbox":[454,248,340,135]}
+{"kind":"textbox","id":"sh/1gbixkfi","slide":6,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[476,268,35,18]}
+{"kind":"textbox","id":"sh/edkz2pwr","slide":6,"text":"AI tools","textPreview":"AI tools","textChars":8,"textLines":1,"bbox":[476,296,275,26]}
+{"kind":"textbox","id":"sh/zet0vuxc","slide":6,"text":"Classify materials and support clearer product information","textPreview":"Classify materials and support clearer product information","textChars":58,"textLines":1,"bbox":[476,328,285,42]}
+{"kind":"shape","id":"sh/oj2h8ze9","slide":6,"bbox":[836,248,340,135]}
+{"kind":"textbox","id":"sh/9kvi14ve","slide":6,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[858,268,35,18]}
+{"kind":"textbox","id":"sh/mhkz6pw3","slide":6,"text":"Deal room","textPreview":"Deal room","textChars":9,"textLines":1,"bbox":[858,296,275,26]}
+{"kind":"textbox","id":"sh/nit0zuxo","slide":6,"text":"Agree terms, chat privately and choose fulfilment","textPreview":"Agree terms, chat privately and choose fulfilment","textChars":49,"textLines":1,"bbox":[858,328,285,42]}
+{"kind":"shape","id":"sh/wnmhcje5","slide":6,"bbox":[72,418,340,135]}
+{"kind":"textbox","id":"sh/x8vi54vq","slide":6,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[94,438,35,18]}
+{"kind":"textbox","id":"sh/54rip4nu","slide":6,"text":"Secure delivery","textPreview":"Secure delivery","textChars":15,"textLines":1,"bbox":[94,466,275,26]}
+{"kind":"textbox","id":"sh/k3ihwz69","slide":6,"text":"Route-based estimate, payment simulation, QR/OTP handover","textPreview":"Route-based estimate, payment simulation, QR/OTP handover","textChars":57,"textLines":1,"bbox":[94,498,285,42]}
+{"kind":"shape","id":"sh/j290ne5o","slide":6,"bbox":[454,418,340,135]}
+{"kind":"textbox","id":"sh/i10zu9o3","slide":6,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[476,438,35,18]}
+{"kind":"textbox","id":"sh/tsbitonq","slide":6,"text":"Ledger","textPreview":"Ledger","textChars":6,"textLines":1,"bbox":[476,466,275,26]}
+{"kind":"textbox","id":"sh/s72hkj6l","slide":6,"text":"Record completion and ownership transfer","textPreview":"Record completion and ownership transfer","textChars":40,"textLines":1,"bbox":[476,498,285,42]}
+{"kind":"shape","id":"sh/76t0re50","slide":6,"bbox":[836,418,340,135]}
+{"kind":"textbox","id":"sh/650zy9of","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[858,438,35,18]}
+{"kind":"textbox","id":"sh/9w7yhknm","slide":6,"text":"Trust Center","textPreview":"Trust Center","textChars":12,"textLines":1,"bbox":[858,466,275,26]}
+{"kind":"textbox","id":"sh/8byhof61","slide":6,"text":"Admin review for listings, delivery cases and disputes","textPreview":"Admin review for listings, delivery cases and disputes","textChars":54,"textLines":1,"bbox":[858,498,285,42]}
+{"kind":"textbox","id":"sh/yhwfil4z","slide":6,"text":"Live demo: eco-match-sepia.vercel.app","textPreview":"Live demo: eco-match-sepia.vercel.app","textChars":37,"textLines":1,"bbox":[72,618,500,24]}
+{"kind":"shape","id":"sh/zi5wrqlk","slide":6,"bbox":[680,225,490,350]}
+{"kind":"image","id":"im/jm5cru98","slide":6,"name":"","geometry":"roundRect","alt":"Live EcoMatch Secure Delivery screen","bbox":[690,235,470,330]}
+{"kind":"notes","id":"nt/m8a11z","slide":6,"text":"Product proof based on deployed EcoMatch application. Live URL: https://eco-match-sepia.vercel.app/"}
+{"kind":"slide","id":"sl/du4pza","slide":7,"title":"07","textShapes":12}
+{"kind":"textbox","id":"sh/0zids761","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/zy9wj25g","slide":7,"text":"A marketplace is easy to build. Trust is harder.","textPreview":"A marketplace is easy to build. Trust is harder.","textChars":48,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/ex0vqxov","slide":7,"text":"VERIFY THE PERSON  →  VERIFY THE PRODUCT  →  SECURE THE MEETING  →  VERIFY THE EXCHANGE  →  TRACE THE OWNERSHIP","textPreview":"VERIFY THE PERSON  →  VERIFY THE PRODUCT  →  SECURE THE MEETING  →  VERIFY THE EXCHANGE  →  TRACE THE OWNERSHIP","textChars":111,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/dwrehsnq","slide":7,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/cbidon65","slide":7,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/ra9cf2pk","slide":7,"bbox":[100,270,220,124]}
+{"kind":"textbox","id":"sh/q9gvmxoz","slide":7,"text":"Seller","textPreview":"Seller","textChars":6,"textLines":1,"bbox":[126,298,130,25]}
+{"kind":"textbox","id":"sh/xsbetwnu","slide":7,"text":"Saved pickup location\nProduct price from deal","textPreview":"Saved pickup location | Product price from deal","textChars":45,"textLines":2,"bbox":[126,336,160,42]}
+{"kind":"shape","id":"sh/w72d0r69","slide":7,"bbox":[320,330,210,4]}
+{"kind":"shape","id":"sh/ydsvexsf","slide":7,"bbox":[530,270,220,124]}
+{"kind":"textbox","id":"sh/ze1wn290","slide":7,"text":"EcoMatch","textPreview":"EcoMatch","textChars":8,"textLines":1,"bbox":[556,298,130,25]}
+{"kind":"textbox","id":"sh/kfadg7a5","slide":7,"text":"Road distance\nWeight & vehicle logic","textPreview":"Road distance | Weight & vehicle logic","textChars":36,"textLines":2,"bbox":[556,336,160,42]}
+{"kind":"shape","id":"sh/lgjepcrq","slide":7,"bbox":[750,330,210,4]}
+{"kind":"shape","id":"sh/qpsvaxs3","slide":7,"bbox":[960,270,220,124]}
+{"kind":"textbox","id":"sh/bq1cj29o","slide":7,"text":"Buyer","textPreview":"Buyer","textChars":5,"textLines":1,"bbox":[986,298,130,25]}
+{"kind":"textbox","id":"sh/cradc7a9","slide":7,"text":"Current location or\nsearched destination","textPreview":"Current location or | searched destination","textChars":40,"textLines":2,"bbox":[986,336,160,42]}
+{"kind":"textbox","id":"sh/dcjelcru","slide":7,"text":"Estimated total = product price + delivery estimate + 10% delivery service fee","textPreview":"Estimated total = product price + delivery estimate + 10% delivery service fee","textChars":78,"textLines":1,"bbox":[170,500,900,38]}
+{"kind":"textbox","id":"sh/ulcvmh8n","slide":7,"text":"Carrier booking and payment stay labelled as simulation until partner and gateway credentials are connected.","textPreview":"Carrier booking and payment stay labelled as simulation until partner and gateway credentials are connected.","textChars":108,"textLines":1,"bbox":[170,560,900,32]}
+{"kind":"notes","id":"nt/du4pza","slide":7,"text":"Integrity controls: browser does not choose pickup, product price or distance. Real carrier booking and payment are not claimed."}
+{"kind":"slide","id":"sl/bvk6a9","slide":8,"title":"08","textShapes":17}
+{"kind":"textbox","id":"sh/zutsbid0","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/0vmtknul","slide":8,"text":"Trust moves the exchange forward","textPreview":"Trust moves the exchange forward","textChars":32,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/lwvadsvq","slide":8,"text":"EcoMatch separates the signals a buyer needs before agreeing to a handover.","textPreview":"EcoMatch separates the signals a buyer needs before agreeing to a handover.","textChars":75,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/mx4bmxcb","slide":8,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/nydcf2dw","slide":8,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/8zmto7uh","slide":8,"bbox":[72,262,92,8]}
+{"kind":"textbox","id":"sh/90vuhsv2","slide":8,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[72,292,70,20]}
+{"kind":"textbox","id":"sh/a14bqxcn","slide":8,"text":"Identity","textPreview":"Identity","textChars":8,"textLines":1,"bbox":[72,328,230,28]}
+{"kind":"textbox","id":"sh/vmdcj2d8","slide":8,"text":"KYC status makes the counterparty visible","textPreview":"KYC status makes the counterparty visible","textChars":41,"textLines":1,"bbox":[72,375,240,74]}
+{"kind":"shape","id":"sh/j2pg7ihs","slide":8,"bbox":[352,262,92,8]}
+{"kind":"textbox","id":"sh/i1gzed07","slide":8,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[352,292,70,20]}
+{"kind":"textbox","id":"sh/547y9szi","slide":8,"text":"Listing","textPreview":"Listing","textChars":7,"textLines":1,"bbox":[352,328,230,28]}
+{"kind":"textbox","id":"sh/k3yhgnid","slide":8,"text":"Images, condition and admin review support listing quality","textPreview":"Images, condition and admin review support listing quality","textChars":58,"textLines":1,"bbox":[352,375,240,74]}
+{"kind":"shape","id":"sh/ve5g3ihg","slide":8,"bbox":[632,262,92,8]}
+{"kind":"textbox","id":"sh/adwzad0v","slide":8,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[632,292,70,20]}
+{"kind":"textbox","id":"sh/x07y58zm","slide":8,"text":"Transaction","textPreview":"Transaction","textChars":11,"textLines":1,"bbox":[632,328,230,28]}
+{"kind":"textbox","id":"sh/wzyhc3i1","slide":8,"text":"Private deal terms and payment state create a shared record","textPreview":"Private deal terms and payment state create a shared record","textChars":59,"textLines":1,"bbox":[632,375,240,74]}
+{"kind":"shape","id":"sh/fa90f2h0","slide":8,"bbox":[912,262,92,8]}
+{"kind":"textbox","id":"sh/u90zmxgf","slide":8,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[912,292,70,20]}
+{"kind":"textbox","id":"sh/q14bu54z","slide":8,"text":"Handover","textPreview":"Handover","textChars":8,"textLines":1,"bbox":[912,328,230,28]}
+{"kind":"textbox","id":"sh/b2ds3a54","slide":8,"text":"Evidence plus a time-bound QR/OTP completes the physical exchange","textPreview":"Evidence plus a time-bound QR/OTP completes the physical exchange","textChars":65,"textLines":1,"bbox":[912,375,240,74]}
+{"kind":"textbox","id":"sh/c36twvmp","slide":8,"text":"The aim: make the transaction inspectable, accountable and easier to complete.","textPreview":"The aim: make the transaction inspectable, accountable and easier to complete.","textChars":78,"textLines":1,"bbox":[72,570,950,40]}
+{"kind":"notes","id":"nt/bvk6a9","slide":8,"text":"Do not call every user verified. The platform displays distinct identity, listing and handover signals."}
+{"kind":"slide","id":"sl/nsdl65","slide":9,"title":"09","textShapes":13}
+{"kind":"textbox","id":"sh/4rip8b65","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/3q9oz6pk","slide":9,"text":"Impact measurement begins with every completed exchange","textPreview":"Impact measurement begins with every completed exchange","textChars":55,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/ip0761oz","slide":9,"text":"We will report what moves through EcoMatch rather than make unverified impact claims.","textPreview":"We will report what moves through EcoMatch rather than make unverified impact claims.","textChars":85,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/dgb65g7m","slide":9,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/sfipcb61","slide":9,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/re9o36pg","slide":9,"bbox":[82,250,500,125]}
+{"kind":"textbox","id":"sh/qt07alov","slide":9,"text":"Assets reused","textPreview":"Assets reused","textChars":13,"textLines":1,"bbox":[107,275,420,25]}
+{"kind":"textbox","id":"sh/tk76tw7i","slide":9,"text":"Count of completed item or material exchanges","textPreview":"Count of completed item or material exchanges","textChars":45,"textLines":1,"bbox":[107,312,420,40]}
+{"kind":"shape","id":"sh/8jy50r6x","slide":9,"bbox":[642,250,500,125]}
+{"kind":"textbox","id":"sh/ylk7y9wz","slide":9,"text":"Material diverted","textPreview":"Material diverted","textChars":17,"textLines":1,"bbox":[667,275,420,25]}
+{"kind":"textbox","id":"sh/jmtorudk","slide":9,"text":"Seller-entered, verified weight category or confirmed weight","textPreview":"Seller-entered, verified weight category or confirmed weight","textChars":60,"textLines":1,"bbox":[667,312,420,40]}
+{"kind":"shape","id":"sh/knmp0ze5","slide":9,"bbox":[82,410,500,125]}
+{"kind":"textbox","id":"sh/lovqt4vq","slide":9,"text":"Local circulation","textPreview":"Local circulation","textChars":17,"textLines":1,"bbox":[107,435,420,25]}
+{"kind":"textbox","id":"sh/6p4729wb","slide":9,"text":"Route distance and buyer/seller locality","textPreview":"Route distance and buyer/seller locality","textChars":40,"textLines":1,"bbox":[107,472,420,40]}
+{"kind":"shape","id":"sh/7qd8vedw","slide":9,"bbox":[642,410,500,125]}
+{"kind":"textbox","id":"sh/8rmp4je1","slide":9,"text":"Trust quality","textPreview":"Trust quality","textChars":13,"textLines":1,"bbox":[667,435,420,25]}
+{"kind":"textbox","id":"sh/tsvqxovm","slide":9,"text":"Verified listings, completed handovers and dispute resolution time","textPreview":"Verified listings, completed handovers and dispute resolution time","textChars":66,"textLines":1,"bbox":[667,472,420,40]}
+{"kind":"textbox","id":"sh/ut476tw7","slide":9,"text":"Pilot goal: establish a credible baseline before publishing environmental savings.","textPreview":"Pilot goal: establish a credible baseline before publishing environmental savings.","textChars":82,"textLines":1,"bbox":[82,610,1000,30]}
+{"kind":"notes","id":"nt/nsdl65","slide":9,"text":"All impact measures are proposed product metrics. No environmental savings figures are claimed until measurement methodology and pilot data are available."}
+{"kind":"slide","id":"sl/n1mdj4","slide":10,"title":"010","textShapes":14}
+{"kind":"textbox","id":"sh/476tc3mx","slide":10,"text":"010","textPreview":"010","textChars":3,"textLines":1,"bbox":[72,54,60,22]}
+{"kind":"textbox","id":"sh/36xsjylc","slide":10,"text":"A practical path to city-scale reuse","textPreview":"A practical path to city-scale reuse","textChars":36,"textLines":1,"bbox":[72,84,1020,58]}
+{"kind":"textbox","id":"sh/2lobad4r","slide":10,"text":"Start with dense supply, learn from exchanges, then connect institutions and logistics.","textPreview":"Start with dense supply, learn from exchanges, then connect institutions and logistics.","textChars":87,"textLines":1,"bbox":[72,150,1010,35]}
+{"kind":"shape","id":"sh/dcfaps3e","slide":10,"bbox":[72,205,1136,2]}
+{"kind":"textbox","id":"sh/cb6tgnmt","slide":10,"text":"EcoMatch  |  Segue 3.0","textPreview":"EcoMatch  |  Segue 3.0","textChars":22,"textLines":1,"bbox":[1040,54,170,20]}
+{"kind":"shape","id":"sh/raxsnil8","slide":10,"bbox":[92,285,320,220]}
+{"kind":"textbox","id":"sh/q9obed4n","slide":10,"text":"PHASE 1","textPreview":"PHASE 1","textChars":7,"textLines":1,"bbox":[116,312,150,18]}
+{"kind":"textbox","id":"sh/1gzuts3a","slide":10,"text":"Pilot","textPreview":"Pilot","textChars":5,"textLines":1,"bbox":[116,350,250,30]}
+{"kind":"textbox","id":"sh/0fqtknmp","slide":10,"text":"Work with campuses, offices and local recyclers. Validate listing quality and successful handovers.","textPreview":"Work with campuses, offices and local recyclers. Validate listing quality and successful handovers.","textChars":99,"textLines":1,"bbox":[116,401,260,76]}
+{"kind":"shape","id":"sh/ulon6p4j","slide":10,"bbox":[472,285,320,220]}
+{"kind":"textbox","id":"sh/fmxofal4","slide":10,"text":"PHASE 2","textPreview":"PHASE 2","textChars":7,"textLines":1,"bbox":[496,312,150,18]}
+{"kind":"textbox","id":"sh/gn6p8fmp","slide":10,"text":"Network","textPreview":"Network","textChars":7,"textLines":1,"bbox":[496,350,250,30]}
+{"kind":"textbox","id":"sh/1oz6hk3a","slide":10,"text":"Build repeat buyer-seller communities around material streams and local areas.","textPreview":"Build repeat buyer-seller communities around material streams and local areas.","textChars":78,"textLines":1,"bbox":[496,401,260,76]}
+{"kind":"shape","id":"sh/2p87ap4f","slide":10,"bbox":[852,285,320,220]}
+{"kind":"textbox","id":"sh/3qhojul0","slide":10,"text":"PHASE 3","textPreview":"PHASE 3","textChars":7,"textLines":1,"bbox":[876,312,150,18]}
+{"kind":"textbox","id":"sh/orqpczml","slide":10,"text":"Institutional","textPreview":"Institutional","textChars":13,"textLines":1,"bbox":[876,350,250,30]}
+{"kind":"textbox","id":"sh/psz6l436","slide":10,"text":"Offer reporting, controlled workflows and reuse insights to organizations and city partners.","textPreview":"Offer reporting, controlled workflows and reuse insights to organizations and city partners.","textChars":92,"textLines":1,"bbox":[876,401,260,76]}
+{"kind":"textbox","id":"sh/it4ne54b","slide":10,"text":"Revenue can come from transaction services and institutional workflow tools after the pilot proves exchange quality.","textPreview":"Revenue can come from transaction services and institutional workflow tools after the pilot proves exchange quality.","textChars":116,"textLines":1,"bbox":[92,570,1010,40]}
+{"kind":"notes","id":"nt/n1mdj4","slide":10,"text":"Roadmap is a plan, not a forecast. Avoid revenue claims until pilot metrics and pricing validation are available."}
+{"kind":"slide","id":"sl/dksxy8","slide":11,"title":"THE ASK","textShapes":6}
+{"kind":"textbox","id":"sh/ri5gj6hs","slide":11,"text":"THE ASK","textPreview":"THE ASK","textChars":7,"textLines":1,"bbox":[92,80,220,25]}
+{"kind":"textbox","id":"sh/sjehsbid","slide":11,"text":"Help us make reuse\nvisible, trusted and\nworth choosing.","textPreview":"Help us make reuse | visible, trusted and | worth choosing.","textChars":55,"textLines":3,"bbox":[92,140,770,220]}
+{"kind":"textbox","id":"sh/tknylgzy","slide":11,"text":"EcoMatch\\nGiving usable resources a trusted second life.","textPreview":"EcoMatch\\nGiving usable resources a trusted second life.","textChars":56,"textLines":1,"bbox":[96,410,685,60]}
+{"kind":"shape","id":"sh/elwzu103","slide":11,"bbox":[910,170,200,200]}
+{"kind":"textbox","id":"sh/fm5gn6ho","slide":11,"text":"LIVE\nDEMO","textPreview":"LIVE | DEMO","textChars":9,"textLines":2,"bbox":[940,230,140,66]}
+{"kind":"textbox","id":"sh/gnehwby9","slide":11,"text":"eco-match-sepia.vercel.app","textPreview":"eco-match-sepia.vercel.app","textChars":26,"textLines":1,"bbox":[848,420,335,24]}
+{"kind":"textbox","id":"sh/1onypgzu","slide":11,"text":"EcoMatch  |  Segue 3.0 Finale","textPreview":"EcoMatch  |  Segue 3.0 Finale","textChars":29,"textLines":1,"bbox":[96,627,370,20]}
+{"kind":"notes","id":"nt/dksxy8","slide":11,"text":"Closing ask: invite judges to open the deployed app. End, then switch to the live product walkthrough."}

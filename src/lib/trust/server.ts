@@ -24,7 +24,7 @@ export async function actor(request:Request,admin=false,allowRestricted=false){
   if(pError||!profile)throw new HttpError(503,"Apply the trust migration before using this feature");
   if(admin&&profile.role!=="admin")throw new HttpError(403,"Admin access required");
   if(!allowRestricted&&(profile.is_banned||profile.account_status!=="active"))throw new HttpError(403,"Your account is restricted pending safety review. Contact the administrator.");
-  return {db,user,profile};
+  return {db,user,profile,authDb:auth};
 }
 export function fail(error:unknown){return Response.json({error:error instanceof HttpError?error.message:error instanceof Error?error.message:"Request failed"},{status:error instanceof HttpError?error.status:400});}
 export function check(error:{message:string}|null){if(error)throw new Error(error.message);}

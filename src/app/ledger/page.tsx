@@ -117,7 +117,7 @@ export default function LedgerPage() {
                 <span className="text-xs text-white/50">SHA-256 Chained Ownership</span>
               </div>
               <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
-                Immutable Material <span className="text-emerald-400">Ownership</span>
+                Tamper-Evident Material <span className="text-emerald-400">Ownership</span>
               </h1>
               <p className="mt-2 max-w-xl text-xs sm:text-sm text-white/60">
                 Every verified circular exchange is cryptographically linked with its prior block hash, generating a tamper-evident audit trail for industrial surplus.
@@ -140,7 +140,7 @@ export default function LedgerPage() {
           {/* Interactive Simulation Button */}
           <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
             <p className="text-xs text-white/50">
-              Interactive Blockchain Verification Mode
+              Interactive Hash-Chain Verification Mode
             </p>
             <button
               onClick={() => setIsTamperSimulated(!isTamperSimulated)}
@@ -173,7 +173,7 @@ export default function LedgerPage() {
         {/* Tamper warning message if active */}
         {isTamperSimulated && (
           <div className="mt-6 rounded-2xl border border-red-500/50 bg-red-950/40 p-4 text-xs font-bold text-red-300 shadow-xl animate-pulse">
-            🚨 TAMPER DETECTED: Hash mismatch at Block #001 invalidates the subsequent chain verification state! Demonstrates mathematical immutability.
+            🚨 TAMPER DETECTED: Hash mismatch at Block #001 invalidates the subsequent chain verification state! Demonstrates how a changed record breaks subsequent hash-chain verification.
           </div>
         )}
 
@@ -185,7 +185,7 @@ export default function LedgerPage() {
             </div>
             <h3 className="mt-4 text-xl font-bold">No Ownership Transfers Recorded Yet</h3>
             <p className="mx-auto mt-2 max-w-md text-xs text-white/50">
-              When a buyer and seller complete a deal through OTP handover, an immutable record block will appear here.
+              When a buyer and seller complete a deal through OTP handover, a hash-chained ownership record will appear here.
             </p>
             <Link
               href="/marketplace"

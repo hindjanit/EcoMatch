@@ -35,6 +35,7 @@ type ProductCardProps = {
   distanceKm?: number | null;
   locationName?: string | null;
   isVerifiedSeller?: boolean;
+  isGstVerifiedBusiness?: boolean;
   trustScore?: number | null;
 };
 
@@ -55,6 +56,7 @@ export default function ProductCard({
   distanceKm,
   locationName,
   isVerifiedSeller,
+  isGstVerifiedBusiness,
   trustScore,
 }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
@@ -100,7 +102,13 @@ export default function ProductCard({
               {isVerifiedSeller && (
                 <span className="flex items-center gap-1 rounded-xl border border-emerald-400/30 bg-[#08120e]/90 px-2 py-1 text-[10px] font-bold text-emerald-300 shadow-lg backdrop-blur-md">
                   <ShieldCheck className="h-3 w-3 text-emerald-400" />
-                  Verified
+                  Identity Verified
+                </span>
+              )}
+              {isGstVerifiedBusiness && (
+                <span className="flex items-center gap-1 rounded-xl border border-sky-400/30 bg-[#08120e]/90 px-2 py-1 text-[10px] font-bold text-sky-300 shadow-lg backdrop-blur-md">
+                  <ShieldCheck className="h-3 w-3 text-sky-400" />
+                  GST Verified
                 </span>
               )}
               {trustScore && trustScore >= 70 && (
@@ -151,7 +159,8 @@ export default function ProductCard({
               </p>
             )}
             <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-semibold">
-              <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-sky-200">{isVerifiedSeller ? "Identity signal available" : "Seller identity pending"}</span>
+              <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-sky-200">{isVerifiedSeller ? "Identity verified" : "Standard seller"}</span>
+              {isGstVerifiedBusiness && <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-200">GST business verified</span>}
               <span className="inline-flex items-center gap-1 rounded-full border border-lime-300/20 bg-lime-300/10 px-2 py-1 text-lime-200"><Truck className="h-3 w-3"/> Delivery planning</span>
             </div>
             <details className="pt-1 text-[10px] text-slate-400"><summary className="min-h-8 cursor-pointer py-1 text-sky-200">Why this trust signal?</summary><p className="leading-4">Identity status, seller area and marketplace review are shown separately. A score is a discovery signal; inspect the listing and agree terms in the deal room.</p></details>

@@ -53,6 +53,9 @@ type SellerLocation = {
   longitude: number;
   location_name?: string | null;
   verification_status?: string | null;
+  business_verification_status?: string | null;
+  gst_verification_method?: string | null;
+  business_name?: string | null;
   trust_score?: number | null;
 };
 
@@ -112,6 +115,7 @@ export default function MarketplacePage() {
   const [distance, setDistance] = useState(50);
   const [sortBy, setSortBy] = useState<"newest" | "price_asc" | "price_desc" | "distance">("newest");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [gstVerifiedOnly, setGstVerifiedOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -160,7 +164,7 @@ export default function MarketplacePage() {
         .eq("verification_status", "approved"),
       supabase
         .from("public_profiles")
-        .select("id, latitude, longitude, location_name, verification_status, trust_score")
+        .select("id, latitude, longitude, location_name, verification_status, business_verification_status, gst_verification_method, business_name, trust_score")
         .in("id", sellerIds),
     ]);
 
@@ -181,6 +185,9 @@ export default function MarketplacePage() {
           longitude: prof.longitude !== null ? Number(prof.longitude) : 0,
           location_name: prof.location_name,
           verification_status: prof.verification_status,
+          business_verification_status: prof.business_verification_status,
+          gst_verification_method: prof.gst_verification_method,
+          business_name: prof.business_name,
           trust_score: prof.trust_score,
         };
       });
@@ -278,12 +285,13 @@ export default function MarketplacePage() {
       }
 
       let matchesVerified = true;
+      const seller = sellerLocations[product.seller_id];
       if (verifiedOnly) {
-        const seller = sellerLocations[product.seller_id];
-        matchesVerified = seller?.verification_status === "verified";
+        matchesVerified = seller?.verification_status === "verified" || seller?.verification_status === "verified_demo";
       }
+      const matchesGstVerified = !gstVerifiedOnly || seller?.business_verification_status === "verified";
 
-      return matchesSearch && matchesCategory && matchesCondition && matchesMin && matchesMax && matchesDistance && matchesVerified;
+      return matchesSearch && matchesCategory && matchesCondition && matchesMin && matchesMax && matchesDistance && matchesVerified && matchesGstVerified;
     });
 
     // Sorting
@@ -311,6 +319,7 @@ export default function MarketplacePage() {
     buyerLongitude,
     sellerLocations,
     verifiedOnly,
+    gstVerifiedOnly,
     sortBy,
   ]);
 
@@ -322,6 +331,7 @@ export default function MarketplacePage() {
     setMaxPrice("");
     setDistance(50);
     setVerifiedOnly(false);
+    setGstVerifiedOnly(false);
     setSortBy("newest");
   }
 
@@ -332,6 +342,7 @@ export default function MarketplacePage() {
     maxPrice !== "",
     distance < 50,
     verifiedOnly,
+    gstVerifiedOnly,
   ].filter(Boolean).length;
 
   return (
@@ -356,7 +367,7 @@ export default function MarketplacePage() {
               Exchange Reusable <span className="bg-gradient-to-r from-emerald-300 via-[#9CB4A7] to-[#FAF8F5] bg-clip-text text-transparent">Materials</span>
             </h1>
             <p className="mt-2 text-sm text-slate-400 max-w-xl">
-              Discover verified industrial surplus, recyclable stocks, and reusable inventory with AI price intelligence and safe escrow deal rooms.
+              Discover reusable industrial surplus and recyclable inventory with AI price intelligence, trust signals, and secure deal rooms.
             </p>
           </div>
 
@@ -552,6 +563,15 @@ export default function MarketplacePage() {
                   />
                   <span>Verified Sellers Only</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-white/80">
+                  <input
+                    type="checkbox"
+                    checked={gstVerifiedOnly}
+                    onChange={(e) => setGstVerifiedOnly(e.target.checked)}
+                    className="h-4 w-4 rounded accent-sky-400"
+                  />
+                  <span>GST Verified Businesses Only</span>
+                </label>
 
                 {activeFilterCount > 0 && (
                   <button
@@ -570,7 +590,7 @@ export default function MarketplacePage() {
         {/* Results Metadata Bar */}
         <div className="mt-8 flex items-center justify-between text-xs text-white/60">
           <p>
-            Showing <strong className="text-emerald-400">{filteredProducts.length}</strong> verified materials
+            Showing <strong className="text-emerald-400">{filteredProducts.length}</strong> marketplace materials
             {category !== "All" && ` in ${category}`}
           </p>
           <div className="flex items-center gap-2">
@@ -598,7 +618,8 @@ export default function MarketplacePage() {
                     imageUrl={firstImageUrl}
                     distanceKm={distanceKm}
                     locationName={seller?.location_name}
-                    isVerifiedSeller={seller?.verification_status === "verified"}
+                    isVerifiedSeller={seller?.verification_status === "verified" || seller?.verification_status === "verified_demo"}
+                    isGstVerifiedBusiness={seller?.business_verification_status === "verified"}
                     trustScore={seller?.trust_score}
                   />
                 );

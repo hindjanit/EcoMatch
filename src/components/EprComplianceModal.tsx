@@ -61,13 +61,13 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
             </div>
             <div>
               <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-300">
-                CPCB COMPLIANT • EPR VALIDATED
+                ECOMATCH VERIFIED EXCHANGE • IMPACT ESTIMATE
               </span>
               <h3 className="text-xl font-black text-white mt-1">
-                Circular Material Provenance & EPR Certificate
+                Circular Material Provenance & Impact Certificate
               </h3>
               <p className="text-xs text-white/60">
-                Verifiable Green Credit & Landfill Diversion Instrument
+                Deal-linked circularity estimate • not a statutory EPR credit
               </p>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
               <p className="font-mono font-bold text-emerald-400">{certificate.certificate_no}</p>
             </div>
             <div className="text-right">
-              <span className="text-white/40 uppercase text-[10px] font-bold">Date of Certification</span>
+              <span className="text-white/40 uppercase text-[10px] font-bold">Issued On</span>
               <p className="font-mono text-white/80">
                 {new Date(certificate.issued_at).toLocaleDateString("en-IN", {
                   year: "numeric",
@@ -107,7 +107,7 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
               <div className="font-mono text-xl font-black text-emerald-300">
                 {certificate.carbon_saved_kg} kg
               </div>
-              <span className="text-[10px] text-white/60 uppercase font-bold">CO₂ Emissions Avoided</span>
+              <span className="text-[10px] text-white/60 uppercase font-bold">Estimated CO₂e Avoided</span>
             </div>
 
             <div className="rounded-xl border border-sky-500/30 bg-[#071f28] p-3 text-center">
@@ -115,7 +115,7 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
               <div className="font-mono text-xl font-black text-sky-300">
                 {certificate.waste_diverted_kg} kg
               </div>
-              <span className="text-[10px] text-white/60 uppercase font-bold">Landfill Diversion</span>
+              <span className="text-[10px] text-white/60 uppercase font-bold">Estimated Material Reuse</span>
             </div>
 
             <div className="rounded-xl border border-teal-500/30 bg-[#062224] p-3 text-center">
@@ -123,30 +123,30 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
               <div className="font-mono text-xl font-black text-teal-300">
                 {certificate.water_saved_liters} L
               </div>
-              <span className="text-[10px] text-white/60 uppercase font-bold">Freshwater Conserved</span>
+              <span className="text-[10px] text-white/60 uppercase font-bold">Estimated Freshwater Avoided</span>
             </div>
           </div>
 
           {/* Details Table */}
           <div className="space-y-2 text-xs divide-y divide-white/5">
             <div className="flex justify-between pt-1">
-              <span className="text-white/50">Certified Material:</span>
+              <span className="text-white/50">Exchange Material:</span>
               <span className="font-bold text-white">{certificate.material_title}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-white/50">EPR Category Classification:</span>
+              <span className="text-white/50">Circular Recovery Category:</span>
               <span className="font-bold text-emerald-300">{certificate.epr_category}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-white/50">Authorized Discloser (Seller):</span>
+              <span className="text-white/50">Seller:</span>
               <span className="font-medium text-white">{certificate.seller_name}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-white/50">Beneficiary Enterprise (Buyer):</span>
+              <span className="text-white/50">Buyer:</span>
               <span className="font-medium text-white">{certificate.buyer_name}</span>
             </div>
             <div className="flex justify-between pt-1">
-              <span className="text-white/50">Compliance Mandate:</span>
+              <span className="text-white/50">Method / Disclaimer:</span>
               <span className="text-white/80">{certificate.compliance_standard}</span>
             </div>
           </div>
@@ -155,7 +155,7 @@ export default function EprComplianceModal({ certificate, onClose }: EprComplian
           <div className="rounded-xl border border-white/10 bg-black/60 p-3 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-white/40 flex items-center gap-1">
-                <QrCode className="h-3 w-3" /> SHA-256 Immutable Audit Hash
+                <QrCode className="h-3 w-3" /> SHA-256 Deal Certificate Hash
               </span>
               <button
                 onClick={handleCopyHash}

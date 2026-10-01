@@ -82,6 +82,9 @@ export default function AddProductPage() {
   );
   const [allowLotSplit, setAllowLotSplit] = useState(true);
   const [isEsgEligible, setIsEsgEligible] = useState(true);
+  const [preferVerifiedBuyers, setPreferVerifiedBuyers] = useState(false);
+  const [requireVerifiedBuyer, setRequireVerifiedBuyer] = useState(false);
+  const [requireGstVerifiedBuyer, setRequireGstVerifiedBuyer] = useState(false);
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
@@ -788,26 +791,9 @@ export default function AddProductPage() {
       }
 
       // -----------------------------
-      // TRUST / IDENTITY LISTING GATE
-      // Unverified sellers: <= ₹10,000, <= 30 active posts.
-      // Verified sellers: <= 300 active posts.
-      // The same rule is also enforced by a DB trigger.
+      // NEUTRAL LISTING LIMIT
+      // Identity/GST verification is optional trust, not a price gate.
       // -----------------------------
-      const { data: sellerProfile, error: sellerProfileError } = await supabase
-        .from("profiles")
-        .select("verification_status")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (sellerProfileError) {
-        throw new Error(
-          `Could not check seller verification: ${sellerProfileError.message}`,
-        );
-      }
-
-      const isIdentityVerified =
-        sellerProfile?.verification_status === "verified";
-
       const { count: activeCount, error: activeCountError } = await supabase
         .from("products")
         .select("id", { count: "exact", head: true })
@@ -815,36 +801,13 @@ export default function AddProductPage() {
         .in("status", ["pending", "pending_review", "changes_requested", "approved", "reserved"]);
 
       if (activeCountError) {
-        throw new Error(
-          activeCountError?.message || "Could not check listing limits.",
-        );
+        throw new Error(activeCountError.message || "Could not check listing limits.");
       }
 
-      if (!isIdentityVerified) {
-        if (Number(price) > 1000) {
-          setLoading(false);
-          setError(
-            "Aadhaar Identity Verification is required to list products above ₹1,000.",
-          );
-          window.setTimeout(() => router.push("/verify-identity"), 1200);
-          return;
-        }
-
-        if ((activeCount || 0) >= 30) {
-          setLoading(false);
-          setError(
-            "Unverified accounts can keep up to 30 active listings under ₹1,000. Verify with Aadhaar to unlock up to 300 listings with no price cap.",
-          );
-          return;
-        }
-      } else {
-        if ((activeCount || 0) >= 300) {
-          setLoading(false);
-          setError(
-            "Verified accounts can have up to 300 active listings. Please manage or remove older listings.",
-          );
-          return;
-        }
+      if ((activeCount || 0) >= 300) {
+        setLoading(false);
+        setError("You can keep up to 300 active listings. Please manage or remove older listings first.");
+        return;
       }
 
       // -----------------------------
@@ -935,6 +898,11 @@ export default function AddProductPage() {
           ai_review_bucket: risk.bucket,
           ai_risk_score: risk.score,
           ai_risk_reasons: risk.reasons,
+
+          b2b_only: listingMode === "b2b",
+          prefer_verified_buyers: preferVerifiedBuyers,
+          require_verified_buyer: requireVerifiedBuyer,
+          gst_verified_buyer_required: listingMode === "b2b" && requireGstVerifiedBuyer,
 
           status: "pending",
         })
@@ -1096,6 +1064,30 @@ export default function AddProductPage() {
                 🏢 Enterprise / B2B Bulk Lot
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-sky-500/20 bg-[#071623]/85 p-4 text-white shadow-xl">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold">Optional trust preferences</h3>
+              <p className="mt-1 text-xs text-white/60">Normal unverified trading remains allowed unless you explicitly require verification for this listing.</p>
+            </div>
+            <span className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-[10px] font-bold text-sky-300">OPTIONAL</span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3 text-xs">
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3">
+              <input type="checkbox" checked={preferVerifiedBuyers} onChange={(e) => setPreferVerifiedBuyers(e.target.checked)} className="accent-emerald-400" />
+              Prefer identity-verified buyers
+            </label>
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3">
+              <input type="checkbox" checked={requireVerifiedBuyer} onChange={(e) => setRequireVerifiedBuyer(e.target.checked)} className="accent-emerald-400" />
+              Require identity verification
+            </label>
+            <label className={`flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 ${listingMode !== "b2b" ? "opacity-50" : ""}`}>
+              <input type="checkbox" disabled={listingMode !== "b2b"} checked={listingMode === "b2b" && requireGstVerifiedBuyer} onChange={(e) => setRequireGstVerifiedBuyer(e.target.checked)} className="accent-emerald-400" />
+              Require GST-verified business buyer
+            </label>
           </div>
         </div>
 
@@ -1261,7 +1253,7 @@ export default function AddProductPage() {
                       onChange={(e) => setIsEsgEligible(e.target.checked)}
                       className="h-4 w-4 accent-sky-600"
                     />
-                    🌱 Issue Digital ESG / EPR Carbon Credit Certificate upon
+                    🌱 Generate a deal-linked circularity impact certificate upon
                     sale
                   </label>
                 </div>

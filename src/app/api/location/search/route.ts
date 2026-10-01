@@ -35,7 +35,7 @@ function labelFor(feature: PhotonFeature) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const q = String(searchParams.get("q") || "").trim();
+    const q = String(searchParams.get("q") || "").trim().slice(0, 160);
 
     if (q.length < 3) {
       return NextResponse.json({ suggestions: [] });
@@ -54,6 +54,7 @@ export async function GET(request: Request) {
         Accept: "application/json",
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {

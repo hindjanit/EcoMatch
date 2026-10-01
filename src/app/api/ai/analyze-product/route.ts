@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 function visionFailure(code: string, message: string, status: number, details: Record<string, unknown> = {}) {
   if (process.env.NODE_ENV !== "production") {
-    console.error(`[Vision AI] ${JSON.stringify({ stage: typeof details.stage === "string" ? details.stage : "FAILURE", code, httpStatus: status, errorName: typeof details.errorType === "string" ? details.errorType : null, errorMessage: typeof details.errorMessage === "string" ? details.errorMessage : null, upstreamStatus: typeof details.upstreamStatus === "number" ? details.upstreamStatus : null, upstreamCode: typeof details.upstreamCode === "string" ? details.upstreamCode : null })}`);
+    console.error(`[Vision AI] ${JSON.stringify({ stage: typeof details.stage === "string" ? details.stage : "FAILURE", code, httpStatus: status, errorName: typeof details.errorType === "string" ? details.errorType : null, errorMessage: typeof details.errorMessage === "string" ? details.errorMessage : null, upstreamStatus: typeof details.upstreamStatus === "number" ? details.upstreamStatus : null, upstreamCode: typeof details.upstreamCode === "string" ? details.upstreamCode : null, upstreamMessage: typeof details.upstreamMessage === "string" ? details.upstreamMessage : null })}`);
   }
   return NextResponse.json({ error: message, code }, { status });
 }
@@ -67,6 +67,8 @@ function phase25ContractDiagnostics(analysis: Record<string, unknown>) {
   const dimensionKeys = Object.keys(dimensions);
   return { missingFields, dimensionKeys, productType: analysis.productType || null, material: analysis.material || null, visibleObservationsCount: Array.isArray(analysis.visibleObservations) ? analysis.visibleObservations.length : null };
 }
+
+const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export async function POST(request: Request) {
   try {
@@ -158,14 +160,13 @@ ${sellerText || "No seller text provided."}
     try {
       // Preserve the last known working classifier model when Vercel has no
       // explicit override. This is a provider default, never an analysis fallback.
-      const model = process.env.GEMINI_VISION_MODEL || "gemini-3.5-flash-lite";
+      const model = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
       if (!/^[a-zA-Z0-9.-]+$/.test(model)) return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model });
       devVisionLog("GEMINI_REQUEST_START", {});
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-      const geminiResponse = await fetch(endpoint, {
+      const geminiRequest = {
         method: "POST",
-        signal: AbortSignal.timeout(10000),
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
@@ -200,15 +201,27 @@ ${sellerText || "No seller text provided."}
             },
           },
         }),
-      });
+      };
+      // Gemini explicitly reports 503 UNAVAILABLE during temporary demand spikes.
+      // Retry that condition once; authentication, model, payload, and parse errors
+      // remain fail-fast and are never masked as a successful analysis.
+      let geminiResponse: Response | undefined;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        geminiResponse = await fetch(endpoint, { ...geminiRequest, signal: AbortSignal.timeout(8000) });
+        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt });
+        if (geminiResponse.status !== 503 || attempt === 2) break;
+        await sleep(300);
+      }
+      if (!geminiResponse) throw new Error("Gemini response unavailable");
       devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status });
 
       if (!geminiResponse.ok) {
         const errorData = await geminiResponse.json().catch(() => null);
         const upstreamCode = typeof errorData?.error?.status === "string" ? errorData.error.status : "UNKNOWN";
-        const code = geminiResponse.status === 404 ? "VISION_MODEL_NOT_FOUND" : geminiResponse.status === 401 || geminiResponse.status === 403 ? "VISION_AUTH_FAILED" : geminiResponse.status === 429 ? "VISION_RATE_LIMITED" : "VISION_UPSTREAM_ERROR";
-        const message = code === "VISION_RATE_LIMITED" ? "Vision AI is temporarily busy. Please try again." : "Vision AI is temporarily unavailable.";
-        return visionFailure(code, message, geminiResponse.status === 429 ? 429 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imageMime: mimeType, imagePayloadCreated: true });
+        const upstreamMessage = typeof errorData?.error?.message === "string" ? errorData.error.message.slice(0, 300) : null;
+        const code = geminiResponse.status === 404 ? "VISION_MODEL_NOT_FOUND" : geminiResponse.status === 401 || geminiResponse.status === 403 ? "VISION_AUTH_FAILED" : geminiResponse.status === 429 ? "VISION_RATE_LIMITED" : geminiResponse.status === 503 ? "VISION_UPSTREAM_UNAVAILABLE" : "VISION_UPSTREAM_ERROR";
+        const message = code === "VISION_RATE_LIMITED" || code === "VISION_UPSTREAM_UNAVAILABLE" ? "Vision AI is temporarily busy. Please try again." : "Vision AI is temporarily unavailable.";
+        return visionFailure(code, message, geminiResponse.status === 429 || geminiResponse.status === 503 ? 503 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, upstreamMessage, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imageMime: mimeType, imagePayloadCreated: true });
       }
 
       const raw = await geminiResponse.json();

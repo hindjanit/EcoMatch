@@ -11,20 +11,26 @@ type TrustBadgeProps = {
   latitude?: number | null;
   longitude?: number | null;
   distanceKm?: number | null;
+  verificationMethod?: string | null;
+  businessVerificationStatus?: string | null;
+  gstVerificationMethod?: string | null;
 };
 
 export default function TrustBadge({
   sellerName,
   verificationStatus,
-  trustScore = 75,
+  trustScore = 0,
   showDetails = true,
   locationName,
   latitude,
   longitude,
   distanceKm,
+  verificationMethod,
+  businessVerificationStatus,
+  gstVerificationMethod,
 }: TrustBadgeProps) {
-  const isVerified = verificationStatus === "verified";
-  const score = trustScore || (isVerified ? 85 : 50);
+  const isVerified = verificationStatus === "verified" || verificationStatus === "verified_demo";
+  const score = Math.max(0, Math.min(100, Number(trustScore ?? 0)));
 
   const mapQuery = latitude && longitude
     ? `${latitude},${longitude}`
@@ -54,13 +60,13 @@ export default function TrustBadge({
               </h4>
               {isVerified && (
                 <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  UIDAI VERIFIED
+                  {["aadhaar", "uidai_offline_ekyc"].includes(verificationMethod || "") ? "AADHAAR VERIFIED" : verificationStatus === "verified_demo" ? "IDENTITY VERIFIED — DEMO" : "IDENTITY VERIFIED"}
                 </span>
               )}
             </div>
             <p className="text-xs text-white/50">
               {isVerified
-                ? "Identity & Cryptographic Proof Validated"
+                ? "Optional identity trust signal"
                 : "Standard Marketplace Account"}
             </p>
           </div>
@@ -109,12 +115,17 @@ export default function TrustBadge({
         <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-[11px] text-white/60">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Escrow OTP Enabled</span>
+            <span>Secure Handover OTP</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Award className="h-3.5 w-3.5 text-emerald-400" />
             <span>Safe Meeting Protocol</span>
           </div>
+        </div>
+      )}
+      {businessVerificationStatus === "verified" && (
+        <div className="flex items-center gap-2 border-t border-white/10 pt-3 text-xs font-bold text-emerald-300">
+          <Award className="h-4 w-4" /> {gstVerificationMethod === "demo" ? "GST Verification — Demo" : "GST Verified Business"}
         </div>
       )}
     </div>

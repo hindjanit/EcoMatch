@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       db.from("trust_audit_logs").select("*").order("created_at", { ascending: false }).limit(100),
       db
         .from("profiles")
-        .select("id,full_name,verification_method,verification_status,identity_presence_status,verified_at")
+        .select("id,full_name,verification_method,verification_status,identity_presence_status,verified_at,account_type,business_name,trade_name,gstin,business_verification_status,gst_verified_at,gst_verification_method")
         .order("verified_at", { ascending: false, nullsFirst: false })
         .limit(100),
       db
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { db, user } = await actor(request, true);
+    const { db, user, authDb } = await actor(request, true);
     await rateLimit(db, `admin:${user.id}`, 30);
     const b = await bodyJson(request);
 
@@ -111,6 +111,39 @@ export async function POST(request: Request) {
         p_event: String(b.id),
         p_attribution: b.attribution,
         p_reason: b.reason,
+      });
+      check(error);
+      return Response.json({ ok: true });
+    }
+
+    if (["verify_business", "reject_business", "review_business"].includes(String(b.action))) {
+      const { error } = await authDb.rpc("trust_admin_business_review", {
+        p_user: String(b.id),
+        p_action: String(b.action).replace("_business", ""),
+        p_legal_name: typeof b.businessName === "string" ? b.businessName : null,
+        p_trade_name: typeof b.tradeName === "string" ? b.tradeName : null,
+      });
+      check(error);
+      return Response.json({ ok: true });
+    }
+
+    if (b.action === "review_communication") {
+      const { error } = await db.rpc("trust_admin_review_communication_event", {
+        p_actor: user.id,
+        p_event: String(b.id),
+        p_status: String(b.status),
+        p_reason: String(b.reason || "Admin reviewed communication safety event."),
+      });
+      check(error);
+      return Response.json({ ok: true });
+    }
+
+    if (b.action === "resolve_dispute") {
+      const { error } = await db.rpc("trust_admin_resolve_dispute", {
+        p_actor: user.id,
+        p_dispute: String(b.id),
+        p_resolution: String(b.resolution),
+        p_reason: String(b.reason || ""),
       });
       check(error);
       return Response.json({ ok: true });

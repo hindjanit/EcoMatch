@@ -105,6 +105,13 @@ type Data = {
     verification_status: string;
     identity_presence_status: string;
     verified_at: string;
+    account_type?: string;
+    business_name?: string | null;
+    trade_name?: string | null;
+    gstin?: string | null;
+    business_verification_status?: string | null;
+    gst_verified_at?: string | null;
+    gst_verification_method?: string | null;
   }[];
   transcripts: {
     id: string;
@@ -276,7 +283,7 @@ export default function TrustCenter() {
         )}
 
         <nav className="my-6 flex flex-wrap gap-2">
-          {["Listings", "Logistics", "Call safety", "Deliveries", "Identity", "Audit"].map((t) => (
+          {["Listings", "Logistics", "Call safety", "Deliveries", "Identity", "Business", "Audit"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -692,6 +699,22 @@ export default function TrustCenter() {
                 <p>Status: {p.verification_status === "verified_demo" ? "DEMO VERIFIED · synthetic identity" : p.verification_status}</p>
                 <p>Presence: {p.identity_presence_status || "Not recorded"}</p>
                 <p>Verified at: {p.verified_at ? new Date(p.verified_at).toLocaleString() : "—"}</p>
+              </article>
+            ))}
+          </section>
+        )}
+
+        {tab === "Business" && (
+          <section>
+            <h2 className="my-4 text-2xl font-bold">BUSINESS / GST REVIEWS</h2>
+            <p className="mb-4 text-sm text-white/60">Only an authorised manual official lookup may mark a business as GST verified.</p>
+            {data?.identities.filter((p) => p.account_type === "business" || p.business_verification_status === "pending").map((p) => (
+              <article key={p.id} className="my-3 rounded-xl border border-sky-300/30 bg-sky-950/20 p-5">
+                <h3 className="font-bold">{p.business_name || p.full_name || "Business account"}</h3>
+                <p className="text-sm">GSTIN: {p.gstin || "Not submitted"} · Trade name: {p.trade_name || "—"}</p>
+                <p className="text-sm">Status: {p.business_verification_status || "unverified"} · Method: {p.gst_verification_method || "—"}</p>
+                <p className="text-sm">Submitted/verified: {p.gst_verified_at ? new Date(p.gst_verified_at).toLocaleString() : "—"}</p>
+                <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void action(p.id, "verify_business")} className="min-h-12 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-slate-950">Mark verified</button><button onClick={() => void action(p.id, "review_business")} className="min-h-12 rounded-lg border border-amber-300/40 px-3 text-xs font-bold text-amber-200">Needs review</button><button onClick={() => void action(p.id, "reject_business")} className="min-h-12 rounded-lg border border-rose-300/40 px-3 text-xs font-bold text-rose-200">Reject</button></div>
               </article>
             ))}
           </section>

@@ -511,23 +511,12 @@ function ChatContent() {
       console.warn("RPC send_safe_message fallback:", rpcErr);
     }
 
-    // 4. Fallback direct insert
+    // 4. Fail closed: never bypass the server-side safety RPC with a direct insert.
     if (!inserted) {
-      const { error: sendErr } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          sender_id: userId,
-          message: textToSend,
-        });
-
-      if (sendErr) {
-        console.error("Message send error:", sendErr);
-        setError(`Failed to send message: ${sendErr.message}`);
-        if (!directText) setNewMessage(textToSend);
-        setSending(false);
-        return;
-      }
+      setError("Message safety verification is temporarily unavailable. Please retry in a moment.");
+      if (!directText) setNewMessage(textToSend);
+      setSending(false);
+      return;
     }
 
     // Explicit send: force user to bottom to see their new message

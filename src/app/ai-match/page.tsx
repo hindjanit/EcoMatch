@@ -83,7 +83,7 @@ export default function AIMatchPage() {
   const [isMatching, setIsMatching] = useState(false);
   const [aiMatches, setAiMatches] = useState<Record<string, { matchScore: number; matchReason: string; matchedTerms: string[] }>>({});
   const [aiSummary, setAiSummary] = useState("");
-  const [poweredBy, setPoweredBy] = useState("Gemini 3.6 Flash");
+  const [poweredBy, setPoweredBy] = useState("EcoMatch Requisition NLP");
 
   const samplePrompts = [
     "Mujhe 30kg industrial nails ya fasteners chahiye under ₹1500",
@@ -140,21 +140,7 @@ export default function AIMatchPage() {
         const res = await fetch("/api/ai/match", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: trimmed,
-            products: products.map((p) => ({
-              id: p.id,
-              title: p.title,
-              category: p.category,
-              material: p.material,
-              price: p.price,
-              quantity: p.quantity,
-              quantity_unit: p.quantity_unit,
-              condition: p.condition,
-              description: p.description,
-              specifications: p.specifications,
-            })),
-          }),
+          body: JSON.stringify({ query: trimmed }),
         });
 
         if (res.ok) {

@@ -5,15 +5,10 @@ import {
   ShieldCheck,
   Award,
   CheckCircle2,
-  Lock,
-  User,
   Boxes,
   Handshake,
-  AlertTriangle,
   HelpCircle,
   X,
-  TrendingUp,
-  FileCheck,
 } from "lucide-react";
 
 interface EcoTrustPassportProps {
@@ -21,11 +16,9 @@ interface EcoTrustPassportProps {
   onClose: () => void;
   userName: string;
   isIdentityVerified: boolean;
-  livenessPassed: boolean;
   completedDealsCount: number;
   activeListingsCount: number;
   disputeCount?: number;
-  accountAgeDays?: number;
 }
 
 export default function EcoTrustPassportModal({
@@ -33,11 +26,9 @@ export default function EcoTrustPassportModal({
   onClose,
   userName,
   isIdentityVerified,
-  livenessPassed,
   completedDealsCount = 0,
   activeListingsCount = 0,
   disputeCount = 0,
-  accountAgeDays = 30,
 }: EcoTrustPassportProps) {
   const [showFormula, setShowFormula] = useState(false);
 

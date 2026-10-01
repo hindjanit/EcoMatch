@@ -469,131 +469,41 @@ async function checkAdminAndLoad() {
         ? "Approve this product and publish it on the marketplace?"
         : "Reject this product listing?";
 
-    const confirmed =
-      window.confirm(
-        confirmationMessage
-      );
+    if (!window.confirm(confirmationMessage)) return;
 
-    if (!confirmed) {
-      return;
-    }
+    const reason =
+      status === "approved"
+        ? "Admin reviewed the listing and approved it for marketplace publication."
+        : "Admin reviewed the listing and rejected it from marketplace publication.";
 
     setProcessingId(productId);
-
-    setMessage(
-      status === "approved"
-        ? "Approving product..."
-        : "Rejecting product..."
-    );
-
+    setMessage(status === "approved" ? "Approving product..." : "Rejecting product...");
     setMessageType("info");
 
     try {
-      // --------------------------------
-      // UPDATE PRODUCT
-      // --------------------------------
-
-      const {
-        error: productError,
-      } = await supabase
-        .from("products")
-        .update({
-          status,
-        })
-        .eq("id", productId);
-
-      if (productError) {
-        console.error(
-          "PRODUCT STATUS ERROR:",
-          productError
-        );
-
-        setMessage(
-          `Product update failed: ${productError.message}`
-        );
-
-        setMessageType("error");
-        setProcessingId(null);
-        return;
-      }
-
-      // --------------------------------
-      // UPDATE PRODUCT IMAGES
-      // --------------------------------
-
-      const {
-        error: imageError,
-      } = await supabase
-        .from("product_images")
-        .update({
-          verification_status:
-            status,
-        })
-        .eq(
-          "product_id",
-          productId
-        );
-
-      if (imageError) {
-        console.error(
-          "IMAGE STATUS ERROR:",
-          imageError
-        );
-
-        setMessage(
-          `Product was ${status}, but image verification could not be updated: ${imageError.message}`
-        );
-
-        setMessageType("error");
-
-        await loadPendingProducts();
-
-        setProcessingId(null);
-        return;
-      }
+      const response = await fetch("/api/trust/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: status === "approved" ? "approve" : "reject", id: productId, reason }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Admin moderation failed");
 
       setMessage(
         status === "approved"
           ? "✅ Product approved successfully and published to the marketplace."
           : "❌ Product rejected successfully."
       );
-
       setMessageType("success");
-
-      // Remove immediately from screen
-      setProducts((current) =>
-        current.filter(
-          (product) =>
-            product.id !==
-            productId
-        )
-      );
-
+      setProducts((current) => current.filter((product) => product.id !== productId));
       setImages((current) => {
-        const updated = {
-          ...current,
-        };
-
-        delete updated[
-          productId
-        ];
-
+        const updated = { ...current };
+        delete updated[productId];
         return updated;
       });
     } catch (error) {
-      console.error(
-        "UNEXPECTED ADMIN ERROR:",
-        error
-      );
-
-      setMessage(
-        `Unexpected error: ${
-          error instanceof Error
-            ? error.message
-            : "Unknown error"
-        }`
-      );
-
+      console.error("ADMIN MODERATION ERROR:", error);
+      setMessage(`Admin moderation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
       setMessageType("error");
     } finally {
       setProcessingId(null);
