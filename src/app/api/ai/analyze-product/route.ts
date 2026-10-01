@@ -4,6 +4,10 @@ import { generateClarificationQuestions, normaliseVisionCondition } from "@/lib/
 import { actor, fail } from "@/lib/trust/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+
+const GEMINI_REQUEST_TIMEOUT_MS = 15000;
+const MAX_GEMINI_ATTEMPTS = 3;
 
 function visionFailure(code: string, message: string, status: number, details: Record<string, unknown> = {}) {
   if (process.env.NODE_ENV !== "production") {
@@ -159,14 +163,18 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      // Use Google's stable Flash alias so deployment is not pinned to a
-      // temporarily overloaded version-specific model.
-      const primaryModel = "gemini-flash-latest";
-      const fallbackModel = process.env.GEMINI_VISION_FALLBACK_MODEL || "gemini-3.7-flash";
-      if (![primaryModel, fallbackModel].every((candidate) => /^[a-zA-Z0-9.-]+$/.test(candidate))) {
-        return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model: primaryModel });
-      }
-      let model = primaryModel;
+      // Primary model: gemini-flash-lite-latest (fastest & highly responsive)
+      // Fallback 1: gemini-3.5-flash-lite
+      // Fallback 2: gemini-3.1-flash-lite
+      // Fallback 3: gemini-3.7-flash
+      const candidateModels = [
+        process.env.GEMINI_VISION_MODEL || "gemini-flash-lite-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.7-flash",
+      ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+
+      let model = candidateModels[0];
       devVisionLog("GEMINI_REQUEST_START", {});
 
       const geminiRequest = {
@@ -206,38 +214,63 @@ ${sellerText || "No seller text provided."}
           },
         }),
       };
+
       const callModel = (candidate: string) => fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        { ...geminiRequest, signal: AbortSignal.timeout(8000) },
+        { ...geminiRequest, signal: AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS) },
       );
 
-      let geminiResponse = await callModel(primaryModel);
-      devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: 1 });
+      let geminiResponse: Response | null = null;
+      let lastErrorStatus = 500;
 
-      if (isRetryableGeminiStatus(geminiResponse.status)) {
-        console.warn("[Vision AI] primary attempt failed", { model: primaryModel, status: geminiResponse.status });
-        await sleep(500);
-        geminiResponse = await callModel(primaryModel);
-        devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: 2 });
+      for (let modelIdx = 0; modelIdx < candidateModels.length; modelIdx++) {
+        const candidate = candidateModels[modelIdx];
+        model = candidate;
+        let attemptSucceeded = false;
 
-        if (isRetryableGeminiStatus(geminiResponse.status)) {
-          console.warn("[Vision AI] primary retry failed", { model: primaryModel, status: geminiResponse.status });
-          console.info("[Vision AI] fallback model used: gemini-3.7-flash", { model: fallbackModel });
-          model = fallbackModel;
-          geminiResponse = await callModel(fallbackModel);
-          devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status, errorCode: geminiResponse.status === 503 ? "UNAVAILABLE" : null, attempt: "fallback" });
-          if (geminiResponse.ok) console.info("[Vision AI] fallback succeeded", { model: fallbackModel });
+        for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt++) {
+          try {
+            const res = await callModel(candidate);
+            devVisionLog("GEMINI_HTTP_RESPONSE", { model: candidate, httpStatus: res.status, attempt });
+
+            if (res.ok) {
+              geminiResponse = res;
+              attemptSucceeded = true;
+              break;
+            }
+
+            lastErrorStatus = res.status;
+            if (!isRetryableGeminiStatus(res.status)) {
+              // Non-retryable HTTP error on this model (e.g. 404 or 400), try fallback model
+              break;
+            }
+
+            // Retryable error (429, 503) -> wait with backoff
+            if (attempt < MAX_GEMINI_ATTEMPTS) {
+              const backoff = attempt === 1 ? 800 : 1600;
+              await sleep(backoff);
+            }
+          } catch (callErr) {
+            const isTimeout = callErr instanceof Error && callErr.name === "TimeoutError";
+            devVisionLog("GEMINI_CALL_ERROR", { model: candidate, error: callErr instanceof Error ? callErr.message : String(callErr), attempt });
+            if (attempt < MAX_GEMINI_ATTEMPTS && !isTimeout) {
+              await sleep(800);
+            } else {
+              break;
+            }
+          }
+        }
+
+        if (attemptSucceeded && geminiResponse) {
+          break;
         }
       }
-      devVisionLog("GEMINI_HTTP_RESPONSE", { httpStatus: geminiResponse.status });
 
-      if (!geminiResponse.ok) {
-        const errorData = await geminiResponse.json().catch(() => null);
-        const upstreamCode = typeof errorData?.error?.status === "string" ? errorData.error.status : "UNKNOWN";
-        const upstreamMessage = typeof errorData?.error?.message === "string" ? errorData.error.message.slice(0, 300) : null;
-        const code = geminiResponse.status === 404 ? "VISION_MODEL_NOT_FOUND" : geminiResponse.status === 401 || geminiResponse.status === 403 ? "VISION_AUTH_FAILED" : geminiResponse.status === 429 ? "VISION_RATE_LIMITED" : geminiResponse.status === 503 ? "VISION_UPSTREAM_UNAVAILABLE" : "VISION_UPSTREAM_ERROR";
+      if (!geminiResponse || !geminiResponse.ok) {
+        const status = geminiResponse?.status || lastErrorStatus || 502;
+        const code = status === 429 ? "VISION_RATE_LIMITED" : status === 503 ? "VISION_UPSTREAM_UNAVAILABLE" : "VISION_UPSTREAM_ERROR";
         const message = code === "VISION_RATE_LIMITED" || code === "VISION_UPSTREAM_UNAVAILABLE" ? "Vision AI is temporarily busy. Please try again." : "Vision AI is temporarily unavailable.";
-        return visionFailure(code, message, geminiResponse.status === 429 || geminiResponse.status === 503 ? 503 : 502, { stage: "gemini_request", configuredModel: model, upstreamStatus: geminiResponse.status, upstreamCode, upstreamMessage, modelAccessible: geminiResponse.status === 404 ? false : "unknown", generateContentSupported: geminiResponse.status === 404 ? false : "unknown", imageMime: mimeType, imagePayloadCreated: true });
+        return visionFailure(code, message, status === 429 || status === 503 ? 503 : 502, { stage: "gemini_request", configuredModel: model });
       }
 
       const raw = await geminiResponse.json();

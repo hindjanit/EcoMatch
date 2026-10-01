@@ -379,7 +379,7 @@ export default function AddProductPage() {
     setVisionLoading(true);
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
 
     try {
       const optimizedBlob = await resizeImageForVision(selectedImages[0]);
@@ -450,9 +450,13 @@ export default function AddProductPage() {
       );
       showToast("AI details populated into form");
     } catch (visionError) {
+      window.clearTimeout(timeoutId);
       console.error("Vision analysis error:", visionError);
+      const isAbort = visionError instanceof Error && (visionError.name === "AbortError" || visionError.message.includes("aborted"));
       setError(
-        visionError instanceof Error
+        isAbort
+          ? "Vision AI connection timed out. Please try again with a clear photo."
+          : visionError instanceof Error
           ? visionError.message
           : "Could not analyze the product image.",
       );
@@ -1960,7 +1964,7 @@ export default function AddProductPage() {
 
             <button
               type="submit"
-              disabled={loading || locationLoading}
+              disabled={loading || locationLoading || visionLoading}
               className="rounded-xl bg-[#187052] px-8 py-3 font-bold text-white shadow-sm hover:bg-[#125c43] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Submitting Listing..." : "Submit Listing"}
