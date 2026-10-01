@@ -159,7 +159,9 @@ ${sellerText || "No seller text provided."}
 `;
 
     try {
-      const primaryModel = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash";
+      // Use Google's stable Flash alias so deployment is not pinned to a
+      // temporarily overloaded version-specific model.
+      const primaryModel = "gemini-flash-latest";
       const fallbackModel = process.env.GEMINI_VISION_FALLBACK_MODEL || "gemini-3.7-flash";
       if (![primaryModel, fallbackModel].every((candidate) => /^[a-zA-Z0-9.-]+$/.test(candidate))) {
         return visionFailure("VISION_MODEL_INVALID", "Vision AI is temporarily unavailable.", 503, { stage: "configuration", model: primaryModel });
@@ -337,7 +339,7 @@ ${sellerText || "No seller text provided."}
       return NextResponse.json({ analysis });
     } catch (error) {
       const timeout = error instanceof Error && error.name === "TimeoutError";
-      return visionFailure(timeout ? "VISION_TIMEOUT" : "VISION_UPSTREAM_ERROR", timeout ? "Vision AI timed out. Please try again." : "Vision AI is temporarily unavailable.", 502, { stage: "request_exception", configuredModel: process.env.GEMINI_VISION_MODEL || null, modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true, errorType: error instanceof Error ? error.name : "unknown" });
+      return visionFailure(timeout ? "VISION_TIMEOUT" : "VISION_UPSTREAM_ERROR", timeout ? "Vision AI timed out. Please try again." : "Vision AI is temporarily unavailable.", 502, { stage: "request_exception", configuredModel: "gemini-flash-latest", modelAccessible: "unknown", generateContentSupported: "unknown", imageMime: mimeType, imagePayloadCreated: true, errorType: error instanceof Error ? error.name : "unknown" });
     }
   } catch (error) {
     if (error instanceof Error && ("status" in error)) return fail(error);
